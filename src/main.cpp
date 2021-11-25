@@ -4,6 +4,8 @@
 #include <spdlog/spdlog.h>
 #include <docopt/docopt.h>
 
+#include "cvPipeline.hpp"
+
 static constexpr auto USAGE =
   R"(Naval Fate.
 
@@ -22,20 +24,19 @@ static constexpr auto USAGE =
           --drifting    Drifting mine.
 )";
 
-int main(int argc, const char **argv)
-{
-  std::map<std::string, docopt::value> args = docopt::docopt(USAGE,
-    { std::next(argv), std::next(argv, argc) },
-    true,// show help if requested
-    "Naval Fate 2.0");// version string
+int main(int, const char **) {
 
-  for (auto const &arg : args) {
-    std::cout << arg.first << "=" << arg.second << std::endl;
-  }
 
+  cvPipeline pipe;
+  pipe.test();
 
   //Use the default logger (stdout, multi-threaded, colored)
   spdlog::info("Hello, {}!", "World");
 
   fmt::print("Hello, from {}\n", "{fmt}");
+
+  for (int i = 0; i > -1;) {
+    int j = 0;
+    ++j;
+  }
 }
