@@ -4,9 +4,14 @@
 #include <imgui.h>
 #include <string>
 #include <array>
+#include <memory>
 
-namespace App {
-class ImguiApp {
+#include "cvPipeline.hpp"
+
+namespace App
+{
+class ImguiApp
+{
 public:
   ImguiApp();
   ~ImguiApp() = default;
@@ -15,6 +20,8 @@ public:
 
 private:
   bool initWindow();
+  bool initCvPipeline();
+
   bool closeWindow();
   bool checkSDLStatus();
 
@@ -33,6 +40,8 @@ private:
   std::array<int, 2> m_windowSize;
   std::array<float, 4> m_backGroundColor;
   bool m_init;
+
+  std::unique_ptr<cvPipeline> m_cvPipeline;
 };
 
 }// namespace App

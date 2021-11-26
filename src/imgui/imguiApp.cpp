@@ -4,15 +4,19 @@
 #include <SDL.h>
 
 #include "imguiApp.hpp"
+#include "logging.hpp"
+#include "utils.hpp"
 
 using namespace App;
 
 constexpr auto GLSL_VERSION = "#version 130";
 
-bool ImguiApp::initWindow() {
+bool ImguiApp::initWindow()
+{
   // Setup SDL
-  if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER | SDL_INIT_GAMECONTROLLER) != 0) {
-    //LOG_ERROR("Error: {}", SDL_GetError());
+  if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER | SDL_INIT_GAMECONTROLLER) != 0)
+  {
+    LOG_ERROR("Error: {}", SDL_GetError());
     return false;
   }
 
@@ -49,7 +53,8 @@ bool ImguiApp::initWindow() {
   return true;
 }
 
-bool ImguiApp::closeWindow() {
+bool ImguiApp::closeWindow()
+{
   ImGui_ImplOpenGL3_Shutdown();
   ImGui_ImplSDL2_Shutdown();
   ImGui::DestroyContext();
@@ -61,22 +66,29 @@ bool ImguiApp::closeWindow() {
   return true;
 }
 
-bool ImguiApp::checkSDLStatus() {
+bool ImguiApp::checkSDLStatus()
+{
   bool stopRendering = false;
 
   SDL_Event event;
-  while (SDL_PollEvent(&event)) {
+  while (SDL_PollEvent(&event))
+  {
     ImGui_ImplSDL2_ProcessEvent(&event);
-    switch (event.type) {
-    case SDL_QUIT: {
+    switch (event.type)
+    {
+    case SDL_QUIT:
+    {
       stopRendering = true;
       break;
     }
-    case SDL_WINDOWEVENT: {
-      if (event.window.event == SDL_WINDOWEVENT_CLOSE && event.window.windowID == SDL_GetWindowID(m_window)) {
+    case SDL_WINDOWEVENT:
+    {
+      if (event.window.event == SDL_WINDOWEVENT_CLOSE && event.window.windowID == SDL_GetWindowID(m_window))
+      {
         stopRendering = true;
       }
-      if (event.window.event == SDL_WINDOWEVENT_RESIZED) {
+      if (event.window.event == SDL_WINDOWEVENT_RESIZED)
+      {
         m_windowSize[0] = event.window.data1;
         m_windowSize[1] = event.window.data2;
       }
@@ -87,29 +99,43 @@ bool ImguiApp::checkSDLStatus() {
   return stopRendering;
 }
 
+bool ImguiApp::initCvPipeline()
+{
+  m_cvPipeline = std::make_unique<cvPipeline>();
+
+  return m_cvPipeline.get() != nullptr;
+}
+
 ImguiApp::ImguiApp()
-  : m_nameApp("CudaCam " /*+ Utils::GetVersions()*/),
+  : m_nameApp("CudaCam " + Utils::GetVersions()),
     m_backGroundColor({ 0.0f, 0.0f, 0.0f, 1.00f }),
     m_windowSize({ 1280, 720 }),
     m_targetFps(60),
     m_currFps(60.0f),
-    m_init(false) {
-  if (!initWindow()) {
-    //LOG_ERROR("Failed to initialize application window");
+    m_init(false)
+{
+  if (!initWindow())
+  {
+    LOG_ERROR("Failed to initialize application window");
     return;
   }
 
-  //LOG_INFO("Application correctly initialized");
+  if (!initCvPipeline())
+  {
+    LOG_ERROR("Failed to initialize computer vision pipeline");
+    return;
+  }
 
-  for (int i = 0; i < 3; ++i)
-    i++;
+  LOG_INFO("Application correctly initialized");
 
   m_init = true;
 }
 
-void ImguiApp::run() {
+void ImguiApp::run()
+{
   bool stopRendering = false;
-  while (!stopRendering) {
+  while (!stopRendering)
+  {
     stopRendering = checkSDLStatus();
 
     ImGui_ImplOpenGL3_NewFrame();
@@ -125,12 +151,14 @@ void ImguiApp::run() {
   closeWindow();
 }
 
-int main(int, char **) {
-  //Utils::InitializeLogger();
+int main(int, char **)
+{
+  Utils::InitializeLogger();
 
   App::ImguiApp app;
 
-  if (app.isInit()) {
+  if (app.isInit())
+  {
     app.run();
   }
 

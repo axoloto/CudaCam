@@ -12,6 +12,6 @@ file(GLOB CPPSRC "*.cpp" "*.hpp")
 
 add_library(cv STATIC ${CPPSRC})
 
-target_include_directories(cv PRIVATE ${opencv_INCLUDE_DIR})
+target_include_directories(cv PUBLIC ${opencv_INCLUDE_DIR} PRIVATE ${CMAKE_SOURCE_DIR}/src/utils)
 
-target_link_libraries(cv PRIVATE cvCuda project_warnings project_options ${opencv_LIBRARIES})
+target_link_libraries(cv PRIVATE cvCuda project_options utils ${opencv_LIBRARIES})  #project_warnings
