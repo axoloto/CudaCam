@@ -132,13 +132,16 @@ ImguiApp::ImguiApp()
 
 void ImguiApp::run()
 {
+  if (!m_init) return;
+
   while (checkSDLStatus())
   {
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplSDL2_NewFrame(m_window);
     ImGui::NewFrame();
 
-    m_cvPipeline->process();
+    if (m_cvPipeline)
+      m_cvPipeline->process();
 
     ImGui::Render();
 

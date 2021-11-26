@@ -9,7 +9,6 @@
 
 int main(int, const char **)
 {
-
   Utils::InitializeLogger();
 
 #ifdef USE_IMGUI
@@ -20,13 +19,21 @@ int main(int, const char **)
     app.run();
   }
 #else
-  cvPipeline pipe;
+  cvPipeline pipeline;
 
-  for (int i = 0; i > -1;)
+  bool keepRunning = true;
+  while (keepRunning)
   {
-    int j = 0;
-    ++j;
+    pipeline.process();
+
+    cv::Mat frame = pipeline.frame();
+
+    cv::imshow("Live", frame);
+
+    if (cv::waitKey(5) >= 0)
+      keepRunning = false;
   }
+
 #endif
 
   return 0;
