@@ -12,9 +12,13 @@ if(USE_IMGUI)
 endif()
 
 # opencv widget only
-add_executable(intro main.cpp)
+add_executable(cudaCam main.cpp)
 
-target_include_directories(intro PRIVATE utils cv)
-
-target_link_libraries(intro PRIVATE project_options project_warnings utils cv docopt::docopt)
-
+if(USE_IMGUI)
+  target_compile_definitions(cudaCam PUBLIC -DUSE_IMGUI)
+  target_include_directories(cudaCam PRIVATE imgui utils cv)
+  target_link_libraries(cudaCam PRIVATE project_options utils cv imguiApp docopt::docopt) #project_warnings
+else()
+  target_include_directories(cudaCam PRIVATE utils cv)
+  target_link_libraries(cudaCam PRIVATE project_options project_warnings utils cv docopt::docopt)
+endif()

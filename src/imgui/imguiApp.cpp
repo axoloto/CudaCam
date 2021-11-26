@@ -1,7 +1,6 @@
 #include <imgui.h>
 #include <bindings/imgui_impl_opengl3.h>
 #include <bindings/imgui_impl_sdl.h>
-#include <SDL.h>
 
 #include "imguiApp.hpp"
 #include "logging.hpp"
@@ -68,7 +67,7 @@ bool ImguiApp::closeWindow()
 
 bool ImguiApp::checkSDLStatus()
 {
-  bool stopRendering = false;
+  bool keepGoing = true;
 
   SDL_Event event;
   while (SDL_PollEvent(&event))
@@ -78,14 +77,14 @@ bool ImguiApp::checkSDLStatus()
     {
     case SDL_QUIT:
     {
-      stopRendering = true;
+      keepGoing = false;
       break;
     }
     case SDL_WINDOWEVENT:
     {
       if (event.window.event == SDL_WINDOWEVENT_CLOSE && event.window.windowID == SDL_GetWindowID(m_window))
       {
-        stopRendering = true;
+        keepGoing = false;
       }
       if (event.window.event == SDL_WINDOWEVENT_RESIZED)
       {
@@ -96,14 +95,14 @@ bool ImguiApp::checkSDLStatus()
     }
     }
   }
-  return stopRendering;
+  return keepGoing;
 }
 
 bool ImguiApp::initCvPipeline()
 {
   m_cvPipeline = std::make_unique<cvPipeline>();
 
-  return m_cvPipeline.get() != nullptr;
+  return m_cvPipeline.get();
 }
 
 ImguiApp::ImguiApp()
@@ -133,14 +132,13 @@ ImguiApp::ImguiApp()
 
 void ImguiApp::run()
 {
-  bool stopRendering = false;
-  while (!stopRendering)
+  while (checkSDLStatus())
   {
-    stopRendering = checkSDLStatus();
-
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplSDL2_NewFrame(m_window);
     ImGui::NewFrame();
+
+    m_cvPipeline->process();
 
     ImGui::Render();
 
@@ -149,18 +147,4 @@ void ImguiApp::run()
   }
 
   closeWindow();
-}
-
-int main(int, char **)
-{
-  Utils::InitializeLogger();
-
-  App::ImguiApp app;
-
-  if (app.isInit())
-  {
-    app.run();
-  }
-
-  return 0;
 }

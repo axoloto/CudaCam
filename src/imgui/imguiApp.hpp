@@ -1,6 +1,8 @@
 #pragma once
 
 #include <SDL.h>
+#undef main//Thank you SDL
+
 #include <imgui.h>
 #include <string>
 #include <array>
