@@ -1,6 +1,9 @@
 #include <imgui.h>
 #include <bindings/imgui_impl_opengl3.h>
 #include <bindings/imgui_impl_sdl.h>
+#include <opencv2/core.hpp>
+#include <opencv2/imgproc.hpp>
+#include <glad/glad.h>
 
 #include "imguiApp.hpp"
 #include "logging.hpp"
@@ -48,6 +51,9 @@ bool ImguiApp::initWindow()
   ImGuiIO &io = ImGui::GetIO();
   (void)io;
   io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+
+  glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+  glGenTextures(1, &m_imageTexture);
 
   return true;
 }
@@ -140,8 +146,49 @@ void ImguiApp::run()
     ImGui_ImplSDL2_NewFrame(m_window);
     ImGui::NewFrame();
 
-    if (m_cvPipeline)
-      m_cvPipeline->process();
+    ImGuiIO &io = ImGui::GetIO();
+    glViewport(0, 0, (int)io.DisplaySize[0], (int)io.DisplaySize[1]);
+    glClearColor(m_backGroundColor[0], m_backGroundColor[1], m_backGroundColor[2], m_backGroundColor[3]);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    //m_cvPipeline->process();
+
+    if (0 && !m_cvPipeline->isCudaEnabled())
+    {
+      cv::Mat image = m_cvPipeline->frame();
+
+      if (0 && !image.empty())
+      {
+        glBindTexture(GL_TEXTURE_2D, m_imageTexture);
+
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+        // Set texture clamping method
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+
+        cv::flip(image, image, -1);
+        cv::cvtColor(image, image, cv::COLOR_RGB2BGR);
+        /*
+        glTexImage2D(
+          GL_TEXTURE_2D,// Type of texture
+          0,// Pyramid level (for mip-mapping) - 0 is the top level
+          GL_RGB,// Internal colour format to convert to
+          image.cols,// Image width
+          image.rows,// Image height
+          0,// Border width in pixels (can either be 1 or 0)
+          GL_RGB,// Input image format (i.e. GL_RGB, GL_RGBA, GL_BGR etc.)
+          GL_UNSIGNED_BYTE,// Image data type
+          image.ptr());// The actual image data itself
+*/
+        ImGui::Begin("OpenGL Texture Text");
+        ImGui::Text("pointer = %p", m_imageTexture);
+        ImGui::Text("size = %d x %d", image.cols, image.rows);
+        ImGui::Image((void *)(intptr_t)m_imageTexture, ImVec2(image.cols, image.rows));
+        ImGui::End();
+      }
+    }
 
     ImGui::Render();
 

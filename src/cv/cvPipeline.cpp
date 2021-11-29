@@ -6,7 +6,7 @@
 #include "cannyEdge.cuh"
 #include "logging.hpp"
 
-cvPipeline::cvPipeline()
+cvPipeline::cvPipeline() : m_isCudaEnabled(false)
 {
   start();
 }

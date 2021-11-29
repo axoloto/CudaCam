@@ -1,10 +1,25 @@
 cmake_minimum_required(VERSION 3.15)
 
-project(CudaCam C CXX CUDA)
+project(CudaCam LANGUAGES C CXX CUDA
+                VERSION 0.1.0
+                DESCRIPTION "Minimal Cuda application processing live webcam stream" 
+                HOMEPAGE_URL "https://github.com/axoloto/CudaCam")
+
 include(cmake/StandardProjectSettings.cmake)
 include(cmake/PreventInSourceBuilds.cmake)
 
+message(STATUS "Version Major ${PROJECT_VERSION_MAJOR}")
+message(STATUS "Version Minor ${PROJECT_VERSION_MINOR}")
+message(STATUS "Version Patch ${PROJECT_VERSION_PATCH}")
+
+message(STATUS "build type ${CMAKE_BUILD_TYPE}")
+message(STATUS "build dir ${CMAKE_BUILD_DIR}")
+
 SET(CMAKE_VERBOSE_MAKEFILE ON)
+
+if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
+    add_compile_definitions(DEBUG_BUILD)
+endif()
 
 # CUDA support mandatory
 include(CheckLanguage)
@@ -64,7 +79,6 @@ option(ENABLE_FUZZING "Enable Fuzzing Builds" OFF)
 option(ENABLE_PCH "Enable Precompiled Headers" OFF)
 if(ENABLE_PCH)
   # This sets a global PCH parameter, each project will build its own PCH, which is a good idea if any #define's change
-  #
   # consider breaking this out per project as necessary
   target_precompile_headers(
     project_options

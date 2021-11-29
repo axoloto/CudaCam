@@ -17,7 +17,11 @@ public:
   bool isRunning() const { return m_webcam && m_webcam->isOpened(); };
   cv::Mat frame() const { return m_frame; };
 
+  bool isCudaEnabled() const { return m_isCudaEnabled; };
+
 private:
+  bool m_isCudaEnabled;
+
   cv::Mat m_frame;
   std::unique_ptr<cv::VideoCapture> m_webcam;
 };

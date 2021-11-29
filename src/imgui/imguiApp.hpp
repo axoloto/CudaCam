@@ -2,6 +2,7 @@
 
 #include <SDL.h>
 #undef main//Thank you SDL
+#include <glad/glad.h>
 
 #include <imgui.h>
 #include <string>
@@ -38,6 +39,8 @@ private:
   // Real framerate
   // can be lower than target depending on the physics simulation cost
   float m_currFps;
+
+  GLuint m_imageTexture;
 
   std::array<int, 2> m_windowSize;
   std::array<float, 4> m_backGroundColor;
