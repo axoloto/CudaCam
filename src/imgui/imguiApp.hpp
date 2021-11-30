@@ -4,7 +4,6 @@
 #include <SDL2/SDL.h>
 #undef main//Thank you SDL
 
-#include <imgui.h>
 #include <string>
 #include <array>
 #include <memory>

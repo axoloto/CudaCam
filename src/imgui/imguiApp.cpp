@@ -1,6 +1,6 @@
 #include <imgui.h>
-#include <bindings/imgui_impl_opengl3.h>
-#include <bindings/imgui_impl_sdl.h>
+#include <imgui_impl_opengl3.h>
+#include <imgui_impl_sdl.h>
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
 #include <glad/glad.h>

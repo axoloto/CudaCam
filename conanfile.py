@@ -22,11 +22,11 @@ class CudaCamConan(ConanFile):
     )
     settings = "os", "compiler", "arch", "build_type"
     exports = "*"
-    generators = "cmake", "cmake_find_package"
+    generators = "cmake_find_package_multi"
     build_policy = "missing"
 
     def requirements(self):
         if self.options.use_imgui == "ON":
             self.requires("sdl/[>=2.0.12]")
-            self.requires("imgui/[>=1.79]")
+            self.requires("imgui/[>=1.85]")
             self.requires("glad/[>=0.1.29]")

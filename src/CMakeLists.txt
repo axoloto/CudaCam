@@ -1,5 +1,5 @@
 
-find_package(docopt)
+find_package(docopt CONFIG)
 
 add_subdirectory(utils)
 add_subdirectory(cv)

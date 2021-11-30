@@ -1,5 +1,5 @@
 find_package(CUDAToolkit REQUIRED)
-find_package(OPENCV REQUIRED)
+find_package(OPENCV REQUIRED CONFIG)
 
 add_library(cvCuda STATIC "cannyEdge.cu" "cannyEdge.cuh")
 
@@ -12,6 +12,6 @@ file(GLOB CPPSRC "*.cpp" "*.hpp")
 
 add_library(cv STATIC ${CPPSRC})
 
-target_include_directories(cv PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${opencv_INCLUDE_DIR} ${CMAKE_SOURCE_DIR}/src/utils)
+target_include_directories(cv PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
-target_link_libraries(cv PRIVATE cvCuda project_options utils ${opencv_LIBRARIES})  #project_warnings
+target_link_libraries(cv PUBLIC project_options utils opencv::opencv_core opencv::opencv_imgproc opencv::opencv_videoio PRIVATE cvCuda)  #project_warnings
