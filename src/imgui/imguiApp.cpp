@@ -40,6 +40,13 @@ bool ImguiApp::initWindow()
   SDL_GL_MakeCurrent(m_window, m_OGLContext);
   SDL_GL_SetSwapInterval(1);// Enable vsync
 
+  // Initialize OpenGL loader
+  if (!gladLoadGL())
+  {
+    LOG_ERROR("Failed to initialize OpenGL loader!");
+    return false;
+  }
+
   IMGUI_CHECKVERSION();
   ImGui::CreateContext();
 
@@ -117,6 +124,7 @@ ImguiApp::ImguiApp()
     m_windowSize({ 1280, 720 }),
     m_targetFps(60),
     m_currFps(60.0f),
+    m_imageTexture(0),
     m_init(false)
 {
   if (!initWindow())
@@ -152,7 +160,7 @@ void ImguiApp::run()
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     //m_cvPipeline->process();
-
+    /*
     if (0 && !m_cvPipeline->isCudaEnabled())
     {
       cv::Mat image = m_cvPipeline->frame();
@@ -170,7 +178,7 @@ void ImguiApp::run()
 
         cv::flip(image, image, -1);
         cv::cvtColor(image, image, cv::COLOR_RGB2BGR);
-        /*
+        
         glTexImage2D(
           GL_TEXTURE_2D,// Type of texture
           0,// Pyramid level (for mip-mapping) - 0 is the top level
@@ -181,15 +189,15 @@ void ImguiApp::run()
           GL_RGB,// Input image format (i.e. GL_RGB, GL_RGBA, GL_BGR etc.)
           GL_UNSIGNED_BYTE,// Image data type
           image.ptr());// The actual image data itself
-*/
+
         ImGui::Begin("OpenGL Texture Text");
         ImGui::Text("pointer = %p", m_imageTexture);
         ImGui::Text("size = %d x %d", image.cols, image.rows);
-        ImGui::Image((void *)(intptr_t)m_imageTexture, ImVec2(image.cols, image.rows));
+        //   ImGui::Image((void *)(intptr_t)m_imageTexture, ImVec2(image.cols, image.rows));
         ImGui::End();
       }
     }
-
+    */
     ImGui::Render();
 
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());

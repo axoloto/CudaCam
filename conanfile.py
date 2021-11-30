@@ -7,6 +7,10 @@ class CudaCamConan(ConanFile):
     options = {
         "use_imgui": ["ON", "OFF", ""]
     }
+    default_options = {
+        "use_imgui": "ON",
+        "opencv:with_ffmpeg": False
+    }
     name = "CudaCam"
     version = "0.1"
     requires = (
@@ -26,4 +30,3 @@ class CudaCamConan(ConanFile):
             self.requires("sdl/[>=2.0.12]")
             self.requires("imgui/[>=1.79]")
             self.requires("glad/[>=0.1.29]")
-
