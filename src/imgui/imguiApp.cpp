@@ -159,13 +159,13 @@ void ImguiApp::run()
     glClearColor(m_backGroundColor[0], m_backGroundColor[1], m_backGroundColor[2], m_backGroundColor[3]);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    //m_cvPipeline->process();
-    /*
-    if (0 && !m_cvPipeline->isCudaEnabled())
+    m_cvPipeline->process();
+
+    if (!m_cvPipeline->isCudaEnabled())
     {
       cv::Mat image = m_cvPipeline->frame();
 
-      if (0 && !image.empty())
+      if (!image.empty())
       {
         glBindTexture(GL_TEXTURE_2D, m_imageTexture);
 
@@ -176,9 +176,8 @@ void ImguiApp::run()
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
 
-        cv::flip(image, image, -1);
         cv::cvtColor(image, image, cv::COLOR_RGB2BGR);
-        
+
         glTexImage2D(
           GL_TEXTURE_2D,// Type of texture
           0,// Pyramid level (for mip-mapping) - 0 is the top level
@@ -193,11 +192,11 @@ void ImguiApp::run()
         ImGui::Begin("OpenGL Texture Text");
         ImGui::Text("pointer = %p", m_imageTexture);
         ImGui::Text("size = %d x %d", image.cols, image.rows);
-        //   ImGui::Image((void *)(intptr_t)m_imageTexture, ImVec2(image.cols, image.rows));
+        ImGui::Image((void *)(intptr_t)m_imageTexture, ImVec2(image.cols, image.rows));
         ImGui::End();
       }
     }
-    */
+
     ImGui::Render();
 
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());

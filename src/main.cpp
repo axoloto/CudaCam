@@ -2,6 +2,7 @@
 #include <iostream>
 
 #include <docopt/docopt.h>
+#include <opencv2/highgui.hpp>
 
 #include "cvPipeline.hpp"
 #include "logging.hpp"
@@ -33,7 +34,6 @@ int main(int, const char **)
     if (cv::waitKey(5) >= 0)
       keepRunning = false;
   }
-
 #endif
 
   return 0;
