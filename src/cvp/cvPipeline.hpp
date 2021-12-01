@@ -5,6 +5,8 @@
 
 #include <memory>
 
+namespace cvp
+{
 class cvPipeline
 {
 public:
@@ -17,11 +19,12 @@ public:
   bool isRunning() const { return m_webcam && m_webcam->isOpened(); };
   cv::Mat frame() const { return m_frame; };
 
-  bool isCudaEnabled() const { return m_isCudaEnabled; };
+  bool isGLCudaInteropEnabled() const { return m_isGLCudaInteropEnabled; };
 
 private:
-  bool m_isCudaEnabled;
+  bool m_isGLCudaInteropEnabled;
 
   cv::Mat m_frame;
   std::unique_ptr<cv::VideoCapture> m_webcam;
 };
+}// namespace cvp

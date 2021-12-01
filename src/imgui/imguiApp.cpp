@@ -113,7 +113,7 @@ bool ImguiApp::checkSDLStatus()
 
 bool ImguiApp::initCvPipeline()
 {
-  m_cvPipeline = std::make_unique<cvPipeline>();
+  m_cvPipeline = std::make_unique<cvp::cvPipeline>();
 
   return m_cvPipeline.get();
 }
@@ -125,6 +125,7 @@ ImguiApp::ImguiApp()
     m_targetFps(60),
     m_currFps(60.0f),
     m_imageTexture(0),
+    m_now(std::chrono::steady_clock::now()),
     m_init(false)
 {
   if (!initWindow())
@@ -144,6 +145,67 @@ ImguiApp::ImguiApp()
   m_init = true;
 }
 
+void ImguiApp::displayMainWidget()
+{
+  // First default pos
+  ImGui::SetNextWindowPos(ImVec2(15, 12), ImGuiCond_FirstUseEver);
+
+  ImGui::Begin("Main Widget", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
+  ImGui::PushItemWidth(150);
+
+  if (!isInit())
+    return;
+
+  auto now = std::chrono::steady_clock::now();
+  auto timeSpent = now - m_now;
+  m_now = now;
+
+  float timeMs = std::chrono::duration_cast<std::chrono::milliseconds>(timeSpent).count();
+  float fps = 1000.0f / timeMs;
+
+  ImGui::Text(" %.3f ms/frame (%.1f FPS) ", timeMs, fps);
+
+  ImGui::End();
+}
+
+void ImguiApp::displayLiveStream()
+{
+  if (!m_cvPipeline->isGLCudaInteropEnabled())
+  {
+    cv::Mat image = m_cvPipeline->frame();
+
+    if (!image.empty())
+    {
+      glBindTexture(GL_TEXTURE_2D, m_imageTexture);
+
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+      // Set texture clamping method
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+
+      cv::cvtColor(image, image, cv::COLOR_RGB2BGR);
+
+      glTexImage2D(
+        GL_TEXTURE_2D,// Type of texture
+        0,// Pyramid level (for mip-mapping) - 0 is the top level
+        GL_RGB,// Internal colour format to convert to
+        image.cols,// Image width
+        image.rows,// Image height
+        0,// Border width in pixels (can either be 1 or 0)
+        GL_RGB,// Input image format (i.e. GL_RGB, GL_RGBA, GL_BGR etc.)
+        GL_UNSIGNED_BYTE,// Image data type
+        image.ptr());// The actual image data itself
+
+      ImGui::Begin("Live Stream");
+      ImGui::Text("%d x %d", image.cols, image.rows);
+      ImGui::Image((void *)(intptr_t)m_imageTexture, ImVec2(image.cols, image.rows));
+      ImGui::End();
+    }
+  }
+}
+
 void ImguiApp::run()
 {
   if (!m_init) return;
@@ -159,43 +221,11 @@ void ImguiApp::run()
     glClearColor(m_backGroundColor[0], m_backGroundColor[1], m_backGroundColor[2], m_backGroundColor[3]);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+    displayMainWidget();
+
     m_cvPipeline->process();
 
-    if (!m_cvPipeline->isCudaEnabled())
-    {
-      cv::Mat image = m_cvPipeline->frame();
-
-      if (!image.empty())
-      {
-        glBindTexture(GL_TEXTURE_2D, m_imageTexture);
-
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-        // Set texture clamping method
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
-
-        cv::cvtColor(image, image, cv::COLOR_RGB2BGR);
-
-        glTexImage2D(
-          GL_TEXTURE_2D,// Type of texture
-          0,// Pyramid level (for mip-mapping) - 0 is the top level
-          GL_RGB,// Internal colour format to convert to
-          image.cols,// Image width
-          image.rows,// Image height
-          0,// Border width in pixels (can either be 1 or 0)
-          GL_RGB,// Input image format (i.e. GL_RGB, GL_RGBA, GL_BGR etc.)
-          GL_UNSIGNED_BYTE,// Image data type
-          image.ptr());// The actual image data itself
-
-        ImGui::Begin("OpenGL Texture Text");
-        ImGui::Text("pointer = %p", m_imageTexture);
-        ImGui::Text("size = %d x %d", image.cols, image.rows);
-        ImGui::Image((void *)(intptr_t)m_imageTexture, ImVec2(image.cols, image.rows));
-        ImGui::End();
-      }
-    }
+    displayLiveStream();
 
     ImGui::Render();
 

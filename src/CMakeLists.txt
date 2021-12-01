@@ -2,7 +2,7 @@
 find_package(docopt CONFIG)
 
 add_subdirectory(utils)
-add_subdirectory(cv)
+add_subdirectory(cvp)
 
 option(USE_IMGUI "Enable compilation of ImGui sample" ON)
 if(USE_IMGUI)
@@ -14,9 +14,9 @@ add_executable(cudaCam main.cpp)
 if(USE_IMGUI)
   # imgui app
   target_compile_definitions(cudaCam PRIVATE -DUSE_IMGUI)
-  target_link_libraries(cudaCam PRIVATE project_options utils cv imguiApp docopt::docopt) #project_warnings
+  target_link_libraries(cudaCam PRIVATE project_options utils cvProcessing imguiApp docopt::docopt) #project_warnings
 else()
   # opencv widget only
   find_package(OPENCV REQUIRED CONFIG)
-  target_link_libraries(cudaCam PRIVATE project_options project_warnings utils cv opencv::opencv_highgui docopt::docopt)
+  target_link_libraries(cudaCam PRIVATE project_options project_warnings utils cvProcessing opencv::opencv_highgui docopt::docopt)
 endif()

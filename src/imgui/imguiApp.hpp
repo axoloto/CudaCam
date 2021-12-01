@@ -7,6 +7,7 @@
 #include <string>
 #include <array>
 #include <memory>
+#include <chrono>
 
 #include "cvPipeline.hpp"
 
@@ -27,6 +28,9 @@ private:
   bool closeWindow();
   bool checkSDLStatus();
 
+  void displayMainWidget();
+  void displayLiveStream();
+
   SDL_Window *m_window;
   SDL_GLContext m_OGLContext;
 
@@ -45,7 +49,9 @@ private:
   std::array<float, 4> m_backGroundColor;
   bool m_init;
 
-  std::unique_ptr<cvPipeline> m_cvPipeline;
+  std::unique_ptr<cvp::cvPipeline> m_cvPipeline;
+
+  std::chrono::steady_clock::time_point m_now;
 };
 
 }// namespace App

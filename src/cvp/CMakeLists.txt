@@ -10,8 +10,8 @@ set_target_properties(cvCuda PROPERTIES CUDA_RESOLVE_DEVICE_SYMBOLS ON)
 
 file(GLOB CPPSRC "*.cpp" "*.hpp")
 
-add_library(cv STATIC ${CPPSRC})
+add_library(cvProcessing STATIC ${CPPSRC})
 
-target_include_directories(cv PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(cvProcessing PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
-target_link_libraries(cv PUBLIC project_options utils opencv::opencv_core opencv::opencv_imgproc opencv::opencv_videoio PRIVATE cvCuda)  #project_warnings
+target_link_libraries(cvProcessing PUBLIC project_options utils opencv::opencv_core opencv::opencv_imgproc opencv::opencv_videoio PRIVATE cvCuda)  #project_warnings

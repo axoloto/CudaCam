@@ -12,4 +12,14 @@ void wrap_test_print() {
   return;
 }
 
+__global__ void conv2D(){
+  int i = 0;
+}
+
+void cvp::cuda::convolution2D()
+{
+  conv2D<<<1,1>>>();
+  return;
+}
+
 #endif

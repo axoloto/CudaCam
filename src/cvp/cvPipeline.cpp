@@ -1,12 +1,12 @@
-
-
 #include <iostream>
 
 #include "cvPipeline.hpp"
 #include "cannyEdge.cuh"
 #include "logging.hpp"
 
-cvPipeline::cvPipeline() : m_isCudaEnabled(false)
+using namespace cvp;
+
+cvPipeline::cvPipeline() : m_isGLCudaInteropEnabled(false)
 {
   start();
 }
@@ -34,6 +34,10 @@ bool cvPipeline::start()
   }
 
   m_webcam->open(0, cv::CAP_ANY);
+
+  // Tentative to take HD stream
+  m_webcam->set(cv::CAP_PROP_FRAME_WIDTH, 1920);
+  m_webcam->set(cv::CAP_PROP_FRAME_HEIGHT, 1080);
 
   if (!isRunning())
     LOG_ERROR("Cannot open webcam stream");
@@ -75,5 +79,8 @@ bool cvPipeline::process()
     return false;
   }
   else
+  {
+    cuda::convolution2D();
     return true;
+  }
 }
