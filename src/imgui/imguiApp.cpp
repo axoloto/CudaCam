@@ -145,16 +145,18 @@ ImguiApp::ImguiApp()
   m_init = true;
 }
 
+ImguiApp::~ImguiApp()
+{
+  closeWindow();
+}
+
 void ImguiApp::displayMainWidget()
 {
-  // First default pos
   ImGui::SetNextWindowPos(ImVec2(15, 12), ImGuiCond_FirstUseEver);
-
   ImGui::Begin("Main Widget", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
   ImGui::PushItemWidth(150);
 
-  if (!isInit())
-    return;
+  if (!m_init) return;
 
   auto now = std::chrono::steady_clock::now();
   auto timeSpent = now - m_now;
@@ -206,20 +208,33 @@ void ImguiApp::displayLiveStream()
   }
 }
 
+void ImguiApp::runLoopStarter()
+{
+  ImGui_ImplOpenGL3_NewFrame();
+  ImGui_ImplSDL2_NewFrame(m_window);
+  ImGui::NewFrame();
+
+  ImGuiIO &io = ImGui::GetIO();
+  glViewport(0, 0, (int)io.DisplaySize[0], (int)io.DisplaySize[1]);
+  glClearColor(m_backGroundColor[0], m_backGroundColor[1], m_backGroundColor[2], m_backGroundColor[3]);
+  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+}
+
+void ImguiApp::runLoopEnder()
+{
+  ImGui::Render();
+
+  ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+  SDL_GL_SwapWindow(m_window);
+}
+
 void ImguiApp::run()
 {
   if (!m_init) return;
 
   while (checkSDLStatus())
   {
-    ImGui_ImplOpenGL3_NewFrame();
-    ImGui_ImplSDL2_NewFrame(m_window);
-    ImGui::NewFrame();
-
-    ImGuiIO &io = ImGui::GetIO();
-    glViewport(0, 0, (int)io.DisplaySize[0], (int)io.DisplaySize[1]);
-    glClearColor(m_backGroundColor[0], m_backGroundColor[1], m_backGroundColor[2], m_backGroundColor[3]);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    runLoopStarter();
 
     displayMainWidget();
 
@@ -227,11 +242,6 @@ void ImguiApp::run()
 
     displayLiveStream();
 
-    ImGui::Render();
-
-    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-    SDL_GL_SwapWindow(m_window);
+    runLoopEnder();
   }
-
-  closeWindow();
 }

@@ -17,7 +17,7 @@ class ImguiApp
 {
 public:
   ImguiApp();
-  ~ImguiApp() = default;
+  ~ImguiApp();
   void run();
   bool isInit() const { return m_init; }
 
@@ -30,6 +30,9 @@ private:
 
   void displayMainWidget();
   void displayLiveStream();
+
+  void runLoopStarter();
+  void runLoopEnder();
 
   SDL_Window *m_window;
   SDL_GLContext m_OGLContext;

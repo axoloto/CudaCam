@@ -78,9 +78,14 @@ bool cvPipeline::process()
     LOG_ERROR("Blank frame grabbed");
     return false;
   }
+  else if (m_frame.type() != CV_8UC3)
+  {
+    LOG_ERROR("Only process CV_8UC3 input type");
+    return false;
+  }
   else
   {
-    cuda::convolution2D();
+    cuda::convolution2D(m_frame.ptr(), m_frame.step, m_frame.cols, m_frame.rows, 30);
     return true;
   }
 }

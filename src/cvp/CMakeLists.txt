@@ -1,7 +1,9 @@
 find_package(CUDAToolkit REQUIRED)
 find_package(OPENCV REQUIRED CONFIG)
 
-add_library(cvCuda STATIC "cannyEdge.cu" "cannyEdge.cuh")
+add_library(cvCuda STATIC "cannyEdge.cu" "cannyEdge.cuh" "helper.cuh")
+
+target_link_libraries(cvCuda PRIVATE utils)
 
 set_target_properties(cvCuda PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
 set_target_properties(cvCuda PROPERTIES CUDA_ARCHITECTURES "52;61;75")

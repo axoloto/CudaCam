@@ -8,6 +8,6 @@ namespace cvp
 {
     namespace cuda
     {
-        void convolution2D();
+        void convolution2D(unsigned char* imageCPU, unsigned int pitchCPU, unsigned int imageWidth, unsigned int imageHeight, unsigned int blockSize);
     }
 } // namespace cvp
