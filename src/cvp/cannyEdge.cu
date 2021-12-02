@@ -48,9 +48,9 @@ void cvp::cuda::convolution2D(unsigned char* imageCPU, unsigned int pitchCPU, un
 
   float timeMs;
 
-  dim3 grid(imageWidth/blockSize, imageHeight/blockSize, 1);
+  dim3 grid(imageWidth * 3/blockSize, imageHeight/blockSize, 1);
   dim3 blocks(blockSize, blockSize, 1);
-  conv2D<<<grid, blocks>>>(inputImageGPU, outputImageGPU, imageWidth, imageHeight, pitchInGPU, pitchOutGPU);
+  conv2D<<<grid, blocks>>>(inputImageGPU, outputImageGPU, imageWidth * 3, imageHeight, pitchInGPU, pitchOutGPU);
 
   // copy back to host
   cudaMemcpy2D(imageCPU, imageWidth * 3, outputImageGPU, pitchOutGPU, imageWidth * 3, imageHeight, cudaMemcpyDeviceToHost);

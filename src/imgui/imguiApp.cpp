@@ -62,6 +62,13 @@ bool ImguiApp::initWindow()
   glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
   glGenTextures(1, &m_imageTexture);
 
+  glBindTexture(GL_TEXTURE_2D, m_imageTexture);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+  glBindTexture(GL_TEXTURE_2D, 0);
+
   return true;
 }
 
@@ -121,7 +128,7 @@ bool ImguiApp::initCvPipeline()
 ImguiApp::ImguiApp()
   : m_nameApp("CudaCam " + Utils::GetVersions()),
     m_backGroundColor({ 0.0f, 0.0f, 0.0f, 1.00f }),
-    m_windowSize({ 1280, 720 }),
+    m_windowSize({ 1920, 1000 }), //1080
     m_targetFps(60),
     m_currFps(60.0f),
     m_imageTexture(0),
@@ -175,19 +182,12 @@ void ImguiApp::displayLiveStream()
   if (!m_cvPipeline->isGLCudaInteropEnabled())
   {
     cv::Mat image = m_cvPipeline->frame();
-
     if (!image.empty())
-    {
-      glBindTexture(GL_TEXTURE_2D, m_imageTexture);
-
-      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-      // Set texture clamping method
-      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
-
+    { 
+      cv::flip(image, image, 1);
       cv::cvtColor(image, image, cv::COLOR_RGB2BGR);
+
+      glBindTexture(GL_TEXTURE_2D, m_imageTexture);
 
       glTexImage2D(
         GL_TEXTURE_2D,// Type of texture
@@ -200,6 +200,9 @@ void ImguiApp::displayLiveStream()
         GL_UNSIGNED_BYTE,// Image data type
         image.ptr());// The actual image data itself
 
+      glBindTexture(GL_TEXTURE_2D, 0);
+
+      ImGui::SetNextWindowSize(ImVec2(image.cols, image.rows), ImGuiCond_FirstUseEver);
       ImGui::Begin("Live Stream");
       ImGui::Text("%d x %d", image.cols, image.rows);
       ImGui::Image((void *)(intptr_t)m_imageTexture, ImVec2(image.cols, image.rows));
