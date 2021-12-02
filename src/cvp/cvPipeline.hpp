@@ -5,8 +5,14 @@
 
 #include <memory>
 
+
 namespace cvp
 {
+namespace cuda
+{
+  class Convolution2D_RGB;
+}
+
 class cvPipeline
 {
 public:
@@ -26,5 +32,6 @@ private:
 
   cv::Mat m_frame;
   std::unique_ptr<cv::VideoCapture> m_webcam;
+  std::unique_ptr<cuda::Convolution2D_RGB> m_cudaConv;
 };
 }// namespace cvp

@@ -8,6 +8,7 @@ using namespace cvp;
 
 cvPipeline::cvPipeline() : m_isGLCudaInteropEnabled(false)
 {
+  m_cudaConv = std::make_unique<cuda::Convolution2D_RGB>();
   start();
 }
 
@@ -85,7 +86,7 @@ bool cvPipeline::process()
   }
   else
   {
-    cuda::convolution2D(m_frame.ptr(), m_frame.step, m_frame.cols, m_frame.rows, 30);
+    m_cudaConv->run(m_frame.ptr(), m_frame.step, m_frame.cols, m_frame.rows, 30);
     return true;
   }
 }
