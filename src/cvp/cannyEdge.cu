@@ -13,7 +13,7 @@ __global__ void conv2D(uint8_t *in, uint8_t *out, unsigned int width, unsigned i
   int row = blockDim.y * blockIdx.y + threadIdx.y;
 
   if (row < height && col < width)
-    out[row * pitchOut + col] = in[row * pitchIn + col];
+    out[row * pitchOut + col] = in[row * pitchIn + col] + 3;
 }
 
 using namespace cvp::cuda;

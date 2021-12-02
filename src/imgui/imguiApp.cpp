@@ -128,7 +128,7 @@ bool ImguiApp::initCvPipeline()
 ImguiApp::ImguiApp()
   : m_nameApp("CudaCam " + Utils::GetVersions()),
     m_backGroundColor({ 0.0f, 0.0f, 0.0f, 1.00f }),
-    m_windowSize({ 1920, 1000 }), //1080
+    m_windowSize({ 1920, 1000 }),//1080
     m_targetFps(60),
     m_currFps(60.0f),
     m_imageTexture(0),
@@ -174,6 +174,19 @@ void ImguiApp::displayMainWidget()
 
   ImGui::Text(" %.3f ms/frame (%.1f FPS) ", timeMs, fps);
 
+  ImGui::Spacing();
+  ImGui::Separator();
+  ImGui::Spacing();
+
+  if (m_cvPipeline)
+  {
+    bool isGaussianFilterEnabled = m_cvPipeline->isGaussianFilterEnabled();
+    if (ImGui::Checkbox("Gaussian Filter", &isGaussianFilterEnabled))
+    {
+      m_cvPipeline->enableGaussianFilter(isGaussianFilterEnabled);
+    }
+  }
+
   ImGui::End();
 }
 
@@ -183,7 +196,7 @@ void ImguiApp::displayLiveStream()
   {
     cv::Mat image = m_cvPipeline->frame();
     if (!image.empty())
-    { 
+    {
       cv::flip(image, image, 1);
       cv::cvtColor(image, image, cv::COLOR_RGB2BGR);
 

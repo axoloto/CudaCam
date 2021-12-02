@@ -27,8 +27,12 @@ public:
 
   bool isGLCudaInteropEnabled() const { return m_isGLCudaInteropEnabled; };
 
+  bool isGaussianFilterEnabled() const { return m_isGaussianFilterEnabled; }
+  void enableGaussianFilter(bool enable) { m_isGaussianFilterEnabled = enable; }
+
 private:
   bool m_isGLCudaInteropEnabled;
+  bool m_isGaussianFilterEnabled;
 
   cv::Mat m_frame;
   std::unique_ptr<cv::VideoCapture> m_webcam;

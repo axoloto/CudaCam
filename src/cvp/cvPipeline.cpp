@@ -84,9 +84,9 @@ bool cvPipeline::process()
     LOG_ERROR("Only process CV_8UC3 input type");
     return false;
   }
-  else
-  {
+
+  if (m_isGaussianFilterEnabled)
     m_cudaConv->run(m_frame.ptr(), m_frame.step, m_frame.cols, m_frame.rows, 30);
-    return true;
-  }
+
+  return true;
 }
