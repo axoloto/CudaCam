@@ -180,10 +180,19 @@ void ImguiApp::displayMainWidget()
 
   if (m_cvPipeline)
   {
-    bool isGaussianFilterEnabled = m_cvPipeline->isGaussianFilterEnabled();
-    if (ImGui::Checkbox("Gaussian Filter", &isGaussianFilterEnabled))
+    bool isCudaProcEnabled = m_cvPipeline->isCudaProcEnabled();
+    if (ImGui::Checkbox("Cuda Processing", &isCudaProcEnabled))
     {
-      m_cvPipeline->enableGaussianFilter(isGaussianFilterEnabled);
+      m_cvPipeline->enableCudaProc(isCudaProcEnabled);
+    }
+
+    if (isCudaProcEnabled)
+    {
+      bool isGaussianFilterEnabled = m_cvPipeline->isGaussianFilterEnabled();
+      if (ImGui::Checkbox("Noise Reduction", &isGaussianFilterEnabled))
+      {
+        m_cvPipeline->enableGaussianFilter(isGaussianFilterEnabled);
+      }
     }
   }
 

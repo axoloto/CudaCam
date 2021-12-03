@@ -6,9 +6,8 @@
 
 using namespace cvp;
 
-cvPipeline::cvPipeline() : m_isGLCudaInteropEnabled(false)
+cvPipeline::cvPipeline() : m_isGLCudaInteropEnabled(false), m_isCudaProcEnabled(true)
 {
-  m_cudaConv = std::make_unique<cuda::Convolution2D_RGB>();
   start();
 }
 
@@ -63,6 +62,26 @@ bool cvPipeline::stop()
   return true;
 }
 
+bool cvPipeline::isCudaReady()
+{
+  if (m_cudaCannyEdge)
+    return true;
+
+  if (!m_cudaCannyEdge)
+  {
+    LOG_DEBUG("Instanciating Canny Edge processing on Cuda");
+    m_cudaCannyEdge = std::make_unique<cuda::CannyEdgeRGB8U>(m_frame.cols, m_frame.rows);
+  }
+
+  if (!m_cudaCannyEdge)
+  {
+    LOG_ERROR("Cannot instanciate Canny Edge processing on Cuda");
+    return false;
+  }
+
+  return true;
+}
+
 bool cvPipeline::process()
 {
   if (!isRunning())
@@ -85,8 +104,15 @@ bool cvPipeline::process()
     return false;
   }
 
+  if (!m_isCudaProcEnabled || !isCudaReady())
+    return false;
+
+  m_cudaCannyEdge->loadImage(m_frame.ptr(), m_frame.step);
+
   if (m_isGaussianFilterEnabled)
-    m_cudaConv->run(m_frame.ptr(), m_frame.step, m_frame.cols, m_frame.rows, 30);
+    m_cudaCannyEdge->runGaussianFilter(30);
+
+  m_cudaCannyEdge->unloadImage(m_frame.ptr());
 
   return true;
 }
