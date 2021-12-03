@@ -2,7 +2,7 @@ find_package(CUDAToolkit REQUIRED)
 find_package(OPENCV REQUIRED CONFIG)
 
 file(GLOB CPPSRC "*.cpp" "*.hpp")
-file(GLOB CUDASRC "cannyEdge.cu" "cannyEdge.cuh" "helper.cuh")
+file(GLOB CUDASRC "cannyEdge.cuh" "helper.cuh")
 
 # Forcing the use of nvcc/Cuda compiler for the whole lib
 set_source_files_properties(${CPPSRC} PROPERTIES LANGUAGE CUDA)
