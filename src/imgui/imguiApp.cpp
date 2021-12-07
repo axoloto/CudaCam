@@ -206,19 +206,21 @@ void ImguiApp::displayLiveStream()
     cv::Mat image = m_cvPipeline->frame();
     if (!image.empty())
     {
+      // WIP
       cv::flip(image, image, 1);
-      cv::cvtColor(image, image, cv::COLOR_RGB2BGR);
+      //cv::cvtColor(image, image, cv::COLOR_RGB2BGR);
 
       glBindTexture(GL_TEXTURE_2D, m_imageTexture);
 
       glTexImage2D(
         GL_TEXTURE_2D,// Type of texture
         0,// Pyramid level (for mip-mapping) - 0 is the top level
-        GL_RGB,// Internal colour format to convert to
+        GL_RED,// Internal colour format to convert to
         image.cols,// Image width
         image.rows,// Image height
         0,// Border width in pixels (can either be 1 or 0)
-        GL_RGB,// Input image format (i.e. GL_RGB, GL_RGBA, GL_BGR etc.)
+        // GL_RGB,// Input image format (i.e. GL_RGB, GL_RGBA, GL_BGR etc.)
+        GL_RED,// Input image format (i.e. GL_RGB, GL_RGBA, GL_BGR etc.)
         GL_UNSIGNED_BYTE,// Image data type
         image.ptr());// The actual image data itself
 

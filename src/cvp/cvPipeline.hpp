@@ -28,7 +28,8 @@ public:
   bool stop();
   bool process();
   bool isRunning() const { return m_webcam && m_webcam->isOpened(); };
-  cv::Mat frame() const { return m_frame; };
+  // cv::Mat frame() const { return m_frame; };
+  cv::Mat frame() const { return m_frameOut.empty() ? m_frame : m_frameOut; };// WIP
 
   bool isCudaProcEnabled() const { return m_isCudaProcEnabled; }
   void enableCudaProc(bool enable) { m_isCudaProcEnabled = enable; }
@@ -39,13 +40,14 @@ public:
   void enableGaussianFilter(bool enable) { m_isGaussianFilterEnabled = enable; }
 
 private:
-  bool isCudaReady();
+  bool isCudaProcReady();
 
   bool m_isCudaProcEnabled;
   bool m_isGLCudaInteropEnabled;
   bool m_isGaussianFilterEnabled;
 
   cv::Mat m_frame;
+  cv::Mat m_frameOut;//WIP
   std::unique_ptr<cv::VideoCapture> m_webcam;
   std::unique_ptr<cuda::CannyEdgeRGB8U> m_cudaCannyEdge;
 };

@@ -62,7 +62,7 @@ bool cvPipeline::stop()
   return true;
 }
 
-bool cvPipeline::isCudaReady()
+bool cvPipeline::isCudaProcReady()
 {
   if (m_cudaCannyEdge)
     return true;
@@ -104,15 +104,23 @@ bool cvPipeline::process()
     return false;
   }
 
-  if (!m_isCudaProcEnabled || !isCudaReady())
+  if (m_frameOut.empty())
+  {
+    m_frameOut.create(m_frame.rows, m_frame.cols, CV_8UC1);
+  }
+
+  if (!m_isCudaProcEnabled || !isCudaProcReady())
     return false;
 
   m_cudaCannyEdge->loadImage(m_frame.ptr(), m_frame.step);
+  // WIP
+  m_cudaCannyEdge->runGrayConversion(30);// UI informed with blocked option
 
-  if (m_isGaussianFilterEnabled)
-    m_cudaCannyEdge->runGaussianFilter(30);
+  // if (m_isGaussianFilterEnabled)
+  //   m_cudaCannyEdge->runGaussianFilter(30);
 
-  m_cudaCannyEdge->unloadImage(m_frame.ptr());
+  // m_cudaCannyEdge->unloadImage(m_frame.ptr());
+  m_cudaCannyEdge->unloadImage(m_frameOut.ptr());
 
   return true;
 }
