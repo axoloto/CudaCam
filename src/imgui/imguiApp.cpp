@@ -68,9 +68,11 @@ bool ImguiApp::initOpenGL()
     return false;
 
   // Pixel buffer object filled by Cuda
+  m_pboCols = m_webcam->frame().cols;
+  m_pboRows = m_webcam->frame().rows;
   glGenBuffers(1, &m_pbo);
   glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, m_pbo);
-  glBufferData(GL_PIXEL_UNPACK_BUFFER_ARB, m_webcam->frame().total() * sizeof(uint8_t), nullptr, GL_STREAM_DRAW_ARB);//wip
+  glBufferData(GL_PIXEL_UNPACK_BUFFER_ARB, m_pboCols * m_pboRows * sizeof(unsigned char), nullptr, GL_STREAM_DRAW_ARB);
   glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
 
   glGenTextures(1, &m_texture);
@@ -144,8 +146,11 @@ ImguiApp::ImguiApp()
     m_backGroundColor({ 0.0f, 0.0f, 0.0f, 1.00f }),
     m_windowSize({ 1920, 1000 }),//1080
     m_targetFps(60),
-    m_currFps(60.0f),
     m_texture(0),
+    m_pboCols(0),
+    m_pboRows(0),
+    m_totalTimeMs(0),
+    m_totalFrames(0),
     m_isCvPipelineEnabled(true),
     m_now(std::chrono::steady_clock::now()),
     m_init(false)
@@ -196,10 +201,19 @@ void ImguiApp::displayMainWidget()
   auto timeSpent = now - m_now;
   m_now = now;
 
-  float timeMs = std::chrono::duration_cast<std::chrono::milliseconds>(timeSpent).count();
-  float fps = 1000.0f / timeMs;
+  m_totalTimeMs += std::chrono::duration_cast<std::chrono::milliseconds>(timeSpent).count();
+  m_totalFrames++;
 
-  ImGui::Text(" %.3f ms/frame (%.1f FPS) ", timeMs, fps);
+  float avgTimeMs = m_totalTimeMs / m_totalFrames;
+  float fps = 1000.0f / avgTimeMs;
+
+  if (m_totalTimeMs > 10000)
+  {
+    m_totalTimeMs = 0;
+    m_totalFrames = 0;
+  }
+
+  ImGui::Text(" %.3f ms/frame (%.1f FPS) ", avgTimeMs, fps);
 
   ImGui::Spacing();
   ImGui::Separator();
@@ -237,6 +251,7 @@ void ImguiApp::displayLiveStream()
       glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, image.cols, image.rows, 0, GL_RGB, GL_UNSIGNED_BYTE, image.ptr());
       glBindTexture(GL_TEXTURE_2D, 0);
 
+      ImGui::SetNextWindowPos(ImVec2(150, 120), ImGuiCond_FirstUseEver);
       ImGui::SetNextWindowSize(ImVec2(image.cols, image.rows), ImGuiCond_FirstUseEver);
       ImGui::Begin("Live Stream");
       ImGui::Text("%d x %d", image.cols, image.rows);
@@ -253,15 +268,15 @@ void ImguiApp::displayLiveStream()
     // Interop OpenGL/CUDA
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, m_pbo);
     glBindTexture(GL_TEXTURE_2D, m_texture);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, 1280, 720, 0, GL_RED, GL_UNSIGNED_BYTE, nullptr);
-
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, m_pboCols, m_pboRows, 0, GL_RED, GL_UNSIGNED_BYTE, nullptr);
     glBindTexture(GL_TEXTURE_2D, 0);
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
 
-    ImGui::SetNextWindowSize(ImVec2(1280, 720), ImGuiCond_FirstUseEver);
-    ImGui::Begin("Live Stream");
-    ImGui::Text("%d x %d", 1280, 720);
-    ImGui::Image((void *)(intptr_t)m_texture, ImVec2(1280, 720));
+    ImGui::SetNextWindowPos(ImVec2(150, 120), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(m_pboCols, m_pboRows), ImGuiCond_FirstUseEver);
+    ImGui::Begin("Cuda Live Stream");
+    ImGui::Text("%d x %d", m_pboCols, m_pboRows);
+    ImGui::Image((void *)(intptr_t)m_texture, ImVec2(m_pboCols, m_pboRows));
     ImGui::End();
   }
 }
@@ -298,7 +313,7 @@ void ImguiApp::run()
 
     m_webcam->read();
 
-    m_cvPipeline->process(m_webcam->frame());
+    // m_cvPipeline->process(m_webcam->frame());
 
     displayLiveStream();
 

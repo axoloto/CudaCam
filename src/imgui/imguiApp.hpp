@@ -42,14 +42,12 @@ private:
 
   std::string m_nameApp;
 
-  // FPS (Frame per second or framerate)
-  // User-defined target framerate
+  size_t m_totalTimeMs;
+  size_t m_totalFrames;
   int m_targetFps;
-  // Real framerate
-  // can be lower than target depending on the physics simulation cost
-  float m_currFps;
 
   // Rendering
+  size_t m_pboCols, m_pboRows;
   GLuint m_pbo;
   GLuint m_texture;
 
