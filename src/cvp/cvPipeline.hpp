@@ -21,20 +21,19 @@ namespace cuda
 class cvPipeline
 {
 public:
-  cvPipeline();
+  cvPipeline(unsigned int pbo);
   ~cvPipeline();
 
   bool start();
   bool stop();
   bool process();
+
+  cv::Mat inputFrame() const { return m_inputFrame; };
+
   bool isRunning() const { return m_webcam && m_webcam->isOpened(); };
-  // cv::Mat frame() const { return m_frame; };
-  cv::Mat frame() const { return m_frameOut.empty() ? m_frame : m_frameOut; };// WIP
 
   bool isCudaProcEnabled() const { return m_isCudaProcEnabled; }
   void enableCudaProc(bool enable) { m_isCudaProcEnabled = enable; }
-
-  bool isGLCudaInteropEnabled() const { return m_isGLCudaInteropEnabled; };
 
   bool isGaussianFilterEnabled() const { return m_isGaussianFilterEnabled; }
   void enableGaussianFilter(bool enable) { m_isGaussianFilterEnabled = enable; }
@@ -43,10 +42,9 @@ private:
   bool isCudaProcReady();
 
   bool m_isCudaProcEnabled;
-  bool m_isGLCudaInteropEnabled;
   bool m_isGaussianFilterEnabled;
 
-  cv::Mat m_frame;
+  cv::Mat m_inputFrame;
   cv::Mat m_frameOut;//WIP
   std::unique_ptr<cv::VideoCapture> m_webcam;
   std::unique_ptr<cuda::CannyEdgeRGB8U> m_cudaCannyEdge;

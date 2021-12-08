@@ -24,6 +24,7 @@ public:
 private:
   bool initWindow();
   bool initCvPipeline();
+  bool initOpenGL();
 
   bool closeWindow();
   bool checkSDLStatus();
@@ -46,7 +47,9 @@ private:
   // can be lower than target depending on the physics simulation cost
   float m_currFps;
 
-  GLuint m_imageTexture;
+  // Rendering
+  GLuint m_pbo;
+  GLuint m_texture;
 
   std::array<int, 2> m_windowSize;
   std::array<float, 4> m_backGroundColor;

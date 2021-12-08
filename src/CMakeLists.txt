@@ -2,6 +2,7 @@
 find_package(docopt CONFIG)
 
 add_subdirectory(utils)
+add_subdirectory(io)
 add_subdirectory(cvp)
 
 option(USE_IMGUI "Enable compilation of ImGui sample" ON)

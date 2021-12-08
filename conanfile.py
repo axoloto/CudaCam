@@ -9,7 +9,8 @@ class CudaCamConan(ConanFile):
     }
     default_options = {
         "use_imgui": "ON",
-        "opencv:with_ffmpeg": False
+        "opencv:with_ffmpeg": False,
+        "glad:extensions":"GL_ARB_vertex_buffer_object, GL_ARB_pixel_buffer_object"
     }
     name = "CudaCam"
     version = "0.1"

@@ -6,9 +6,17 @@
 
 using namespace cvp;
 
-cvPipeline::cvPipeline() : m_isGLCudaInteropEnabled(false), m_isCudaProcEnabled(true)
+cvPipeline::cvPipeline(unsigned int pbo) : m_isCudaProcEnabled(true)
 {
-  start();
+  if (start())
+  {
+    // Reading webcam stream once to initialize cuda buffers
+    m_webcam->read(m_inputFrame);
+    if (!m_inputFrame.empty())
+    {
+      m_cudaCannyEdge = std::make_unique<cuda::CannyEdgeRGB8U>(pbo, m_inputFrame.cols, m_inputFrame.rows);
+    }
+  }
 }
 
 cvPipeline::~cvPipeline()
@@ -64,22 +72,7 @@ bool cvPipeline::stop()
 
 bool cvPipeline::isCudaProcReady()
 {
-  if (m_cudaCannyEdge)
-    return true;
-
-  if (!m_cudaCannyEdge)
-  {
-    LOG_DEBUG("Instanciating Canny Edge processing on Cuda");
-    m_cudaCannyEdge = std::make_unique<cuda::CannyEdgeRGB8U>(m_frame.cols, m_frame.rows);
-  }
-
-  if (!m_cudaCannyEdge)
-  {
-    LOG_ERROR("Cannot instanciate Canny Edge processing on Cuda");
-    return false;
-  }
-
-  return true;
+  return (m_cudaCannyEdge.get() != nullptr);
 }
 
 bool cvPipeline::process()
@@ -90,15 +83,15 @@ bool cvPipeline::process()
     return false;
   }
 
-  // wait for a new frame from camera and store it into m_frame
-  m_webcam->read(m_frame);
+  // wait for a new frame from camera and store it into m_inputFrame
+  m_webcam->read(m_inputFrame);
 
-  if (m_frame.empty())
+  if (m_inputFrame.empty())
   {
     LOG_ERROR("Blank frame grabbed");
     return false;
   }
-  else if (m_frame.type() != CV_8UC3)
+  else if (m_inputFrame.type() != CV_8UC3)
   {
     LOG_ERROR("Only process CV_8UC3 input type");
     return false;
@@ -106,21 +99,21 @@ bool cvPipeline::process()
 
   if (m_frameOut.empty())
   {
-    m_frameOut.create(m_frame.rows, m_frame.cols, CV_8UC1);
+    m_frameOut.create(m_inputFrame.rows, m_inputFrame.cols, CV_8UC1);
   }
 
   if (!m_isCudaProcEnabled || !isCudaProcReady())
     return false;
 
-  m_cudaCannyEdge->loadImage(m_frame.ptr(), m_frame.step);
-  // WIP
+  m_cudaCannyEdge->loadInputImage(m_inputFrame.ptr(), m_inputFrame.step);
+
   m_cudaCannyEdge->runGrayConversion(30);// UI informed with blocked option
 
   // if (m_isGaussianFilterEnabled)
   //   m_cudaCannyEdge->runGaussianFilter(30);
 
-  // m_cudaCannyEdge->unloadImage(m_frame.ptr());
-  m_cudaCannyEdge->unloadImage(m_frameOut.ptr());
+  // m_cudaCannyEdge->unloadImage(m_inputFrame.ptr());
+  //m_cudaCannyEdge->unloadImage(m_frameOut.ptr());
 
   return true;
 }

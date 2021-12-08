@@ -40,13 +40,6 @@ bool ImguiApp::initWindow()
   SDL_GL_MakeCurrent(m_window, m_OGLContext);
   SDL_GL_SetSwapInterval(1);// Enable vsync
 
-  // Initialize OpenGL loader
-  if (!gladLoadGL())
-  {
-    LOG_ERROR("Failed to initialize OpenGL loader!");
-    return false;
-  }
-
   IMGUI_CHECKVERSION();
   ImGui::CreateContext();
 
@@ -59,10 +52,22 @@ bool ImguiApp::initWindow()
   (void)io;
   io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 
-  glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
-  glGenTextures(1, &m_imageTexture);
+  return true;
+}
 
-  glBindTexture(GL_TEXTURE_2D, m_imageTexture);
+bool ImguiApp::initOpenGL()
+{
+  if (!gladLoadGL())
+    return false;
+
+  // Pixel buffer object filled by Cuda
+  glGenBuffers(1, &m_pbo);
+  glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, m_pbo);
+  glBufferData(GL_PIXEL_UNPACK_BUFFER_ARB, 1280 * 720 * sizeof(uint8_t), nullptr, GL_STREAM_DRAW_ARB);//wip
+  glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
+
+  glGenTextures(1, &m_texture);
+  glBindTexture(GL_TEXTURE_2D, m_texture);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
@@ -82,6 +87,8 @@ bool ImguiApp::closeWindow()
   SDL_DestroyWindow(m_window);
   SDL_Quit();
 
+  glDeleteBuffers(1, &m_pbo);
+  glDeleteTextures(1, &m_texture);
   return true;
 }
 
@@ -120,7 +127,7 @@ bool ImguiApp::checkSDLStatus()
 
 bool ImguiApp::initCvPipeline()
 {
-  m_cvPipeline = std::make_unique<cvp::cvPipeline>();
+  m_cvPipeline = std::make_unique<cvp::cvPipeline>(m_pbo);
 
   return m_cvPipeline.get();
 }
@@ -131,13 +138,19 @@ ImguiApp::ImguiApp()
     m_windowSize({ 1920, 1000 }),//1080
     m_targetFps(60),
     m_currFps(60.0f),
-    m_imageTexture(0),
+    m_texture(0),
     m_now(std::chrono::steady_clock::now()),
     m_init(false)
 {
   if (!initWindow())
   {
     LOG_ERROR("Failed to initialize application window");
+    return;
+  }
+
+  if (!initOpenGL())
+  {
+    LOG_ERROR("Failed to initialize openGL loader");
     return;
   }
 
@@ -201,37 +214,43 @@ void ImguiApp::displayMainWidget()
 
 void ImguiApp::displayLiveStream()
 {
-  if (!m_cvPipeline->isGLCudaInteropEnabled())
+  if (!m_cvPipeline->isCudaProcEnabled())
   {
-    cv::Mat image = m_cvPipeline->frame();
+    cv::Mat image = m_cvPipeline->inputFrame();
+
     if (!image.empty())
     {
-      // WIP
       cv::flip(image, image, 1);
-      //cv::cvtColor(image, image, cv::COLOR_RGB2BGR);
+      cv::cvtColor(image, image, cv::COLOR_RGB2BGR);
 
-      glBindTexture(GL_TEXTURE_2D, m_imageTexture);
+      glBindTexture(GL_TEXTURE_2D, m_texture);
 
-      glTexImage2D(
-        GL_TEXTURE_2D,// Type of texture
-        0,// Pyramid level (for mip-mapping) - 0 is the top level
-        GL_RED,// Internal colour format to convert to
-        image.cols,// Image width
-        image.rows,// Image height
-        0,// Border width in pixels (can either be 1 or 0)
-        // GL_RGB,// Input image format (i.e. GL_RGB, GL_RGBA, GL_BGR etc.)
-        GL_RED,// Input image format (i.e. GL_RGB, GL_RGBA, GL_BGR etc.)
-        GL_UNSIGNED_BYTE,// Image data type
-        image.ptr());// The actual image data itself
+      glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, image.cols, image.rows, 0, GL_RGB, GL_UNSIGNED_BYTE, image.ptr());
 
       glBindTexture(GL_TEXTURE_2D, 0);
 
       ImGui::SetNextWindowSize(ImVec2(image.cols, image.rows), ImGuiCond_FirstUseEver);
       ImGui::Begin("Live Stream");
       ImGui::Text("%d x %d", image.cols, image.rows);
-      ImGui::Image((void *)(intptr_t)m_imageTexture, ImVec2(image.cols, image.rows));
+      ImGui::Image((void *)(intptr_t)m_texture, ImVec2(image.cols, image.rows));
       ImGui::End();
     }
+  }
+  else
+  {
+    // Interop OpenGL/CUDA
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, m_pbo);
+    glBindTexture(GL_TEXTURE_2D, m_texture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, 1280, 720, 0, GL_RED, GL_UNSIGNED_BYTE, nullptr);
+
+    glBindTexture(GL_TEXTURE_2D, 0);
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
+
+    ImGui::SetNextWindowSize(ImVec2(1280, 720), ImGuiCond_FirstUseEver);
+    ImGui::Begin("Live Stream");
+    ImGui::Text("%d x %d", 1280, 720);
+    ImGui::Image((void *)(intptr_t)m_texture, ImVec2(1280, 720));
+    ImGui::End();
   }
 }
 

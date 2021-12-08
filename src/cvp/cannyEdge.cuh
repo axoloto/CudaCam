@@ -1,9 +1,17 @@
 #pragma once
 
+#ifdef _WIN32// Necessary for OpenGL
+#include <windows.h>
+#endif
+
 #include <stdio.h>
 #include <stdint.h>
+
+#include <cuda_gl_interop.h>
+
 #include "logging.hpp"
 #include "helper.cuh"
+
 namespace cvp
 {
 namespace cuda
@@ -14,11 +22,11 @@ namespace cuda
   class CannyEdge
   {
   public:
-    CannyEdge(unsigned int imageWidth, unsigned int imageHeight);
+    CannyEdge(unsigned int pbo, unsigned int imageWidth, unsigned int imageHeight);
     ~CannyEdge();
 
-    void loadImage(unsigned char *ptrCPU, size_t pitchCPU);
-    void unloadImage(unsigned char *ptrCPU);
+    void loadInputImage(unsigned char *ptrCPU, size_t pitchCPU);
+    //   void unloadImage(unsigned char *ptrCPU); // Not needed anymore, using interop opengl cuda
 
     // Step 0 - Gray Conversion
     void runGrayConversion(unsigned int blockSize);
@@ -46,10 +54,13 @@ namespace cuda
     T *d_inRGB;
     size_t d_inPitch;
 
-    T *d_outY;
+    unsigned char *d_outY;
     size_t d_outPitch;
 
+    struct cudaGraphicsResource *d_pbo;
+
     bool m_isAlloc;
+    bool m_isInit;
   };
 
 // Device Kernels
@@ -60,7 +71,7 @@ namespace cuda
 
   // Greyscale conversion
   // From 8UC3 to 8UC1
-  __global__ void RGB2Y(const uint8_t *__restrict__ in, uint8_t *__restrict__ out, unsigned int width, unsigned int height, unsigned int pitchIn, unsigned int pitchOut)
+  __global__ void RGB2Y(const unsigned char *__restrict__ in, unsigned char *__restrict__ out, const unsigned int width, const unsigned int height, const unsigned int pitchIn, const unsigned int pitchOut)
   {
     int col = blockDim.x * blockIdx.x + threadIdx.x;
     int row = blockDim.y * blockIdx.y + threadIdx.y;
@@ -73,7 +84,7 @@ namespace cuda
   }
 
   // Gaussian Filter
-  __global__ void gaussianFilter2D_RGB(uint8_t *in, uint8_t *out, unsigned int width, unsigned int height, unsigned int pitchIn, unsigned int pitchOut)
+  __global__ void gaussianFilter2D_RGB(unsigned char *in, unsigned char *out, unsigned int width, unsigned int height, unsigned int pitchIn, unsigned int pitchOut)
   {
     int col = blockDim.x * blockIdx.x + threadIdx.x;
     int row = blockDim.y * blockIdx.y + threadIdx.y;
@@ -84,11 +95,13 @@ namespace cuda
 #endif
 
   template<class T, size_t nbChannels>
-  CannyEdge<T, nbChannels>::CannyEdge(unsigned int imageWidth, unsigned int imageHeight)
+  CannyEdge<T, nbChannels>::CannyEdge(unsigned int pbo, unsigned int imageWidth, unsigned int imageHeight)
     : m_isAlloc(false), m_nbChannels(nbChannels), m_imageWidth(imageWidth), m_imageHeight(imageHeight), d_inPitch(0), d_outPitch(0)
   {
+    checkCudaErrors(cudaGraphicsGLRegisterBuffer(&d_pbo, pbo, cudaGraphicsMapFlagsWriteDiscard));
     initAlloc();
   };
+
   template<class T, size_t nbChannels>
   CannyEdge<T, nbChannels>::~CannyEdge()
   {
@@ -96,7 +109,7 @@ namespace cuda
   }
 
   template<class T, size_t nbChannels>
-  void CannyEdge<T, nbChannels>::loadImage(unsigned char *hImage, size_t hPitch)// Need to add checks
+  void CannyEdge<T, nbChannels>::loadInputImage(unsigned char *hImage, size_t hPitch)// Need to add checks
   {
     if (!hImage || hPitch == 0)
     {
@@ -110,9 +123,9 @@ namespace cuda
 
     LOG_DEBUG("End loading image in GPU");
   }
-
+  /*
   template<class T, size_t nbChannels>
-  void CannyEdge<T, nbChannels>::unloadImage(unsigned char *hImage)// Need to add checks
+  void CannyEdge<T, nbChannels>::unloadImage(unsigned char *hImage)
   {
     if (!hImage)
     {
@@ -126,7 +139,7 @@ namespace cuda
 
     LOG_DEBUG("End unloading image in GPU");
   }
-
+*/
   template<class T, size_t nbChannels>
   void CannyEdge<T, nbChannels>::runGrayConversion(unsigned int blockSize)
   {
@@ -135,9 +148,16 @@ namespace cuda
 
     LOG_DEBUG("Start Gray Conversion Cuda Kernel");
 
+    unsigned char *outPbo;
+    size_t dumbSize;
+    checkCudaErrors(cudaGraphicsMapResources(1, &d_pbo, 0));
+    checkCudaErrors(cudaGraphicsResourceGetMappedPointer((void **)&outPbo, &dumbSize, d_pbo));
+
     dim3 blocks(blockSize, blockSize, 1);
-    dim3 grid(m_imageWidth / blockSize + 1, m_imageHeight / blockSize + 1, 1);
-    RGB2Y<<<grid, blocks>>>(d_inRGB, d_outY, m_imageWidth, m_imageHeight, d_inPitch, d_outPitch);
+    dim3 grid((m_imageWidth + blockSize - 1) / blockSize, (m_imageHeight + blockSize - 1) / blockSize, 1);
+    RGB2Y<<<grid, blocks>>>(d_inRGB, outPbo, m_imageWidth, m_imageHeight, d_inPitch, m_imageWidth);//d_outPitch
+
+    checkCudaErrors(cudaGraphicsUnmapResources(1, &d_pbo, 0));
 
     LOG_DEBUG("End Gray Conversion Cuda Kernel");
   }
@@ -172,7 +192,7 @@ namespace cuda
     LOG_DEBUG("Start allocating image memory in GPU");
 
     checkCudaErrors(cudaMallocPitch(&d_inRGB, &d_inPitch, m_imageWidth * m_nbChannels, m_imageHeight));
-    checkCudaErrors(cudaMallocPitch(&d_outY, &d_outPitch, m_imageWidth, m_imageHeight));
+    //checkCudaErrors(cudaMallocPitch(&d_outY, &d_outPitch, m_imageWidth, m_imageHeight));
 
     //const std::array<std::array<float, 5>, 5> gaussianKernel = 1 / 159.0f * { { 2, 4, 5, 4, 2 }, { 4, 9, 12, 9, 4 }, { 5, 12, 15, 12, 5 }, { 4, 9, 12, 9, 4 }, { 2, 4, 5, 4, 2 } };
     //checkCudaErrors(cudaMemcpyToSymbol(GK, gaussianKernel, 25 * sizeof(float)));
@@ -188,7 +208,7 @@ namespace cuda
     LOG_DEBUG("Start deallocating image memory in GPU");
 
     checkCudaErrors(cudaFree(d_inRGB));
-    checkCudaErrors(cudaFree(d_outY));
+    //checkCudaErrors(cudaFree(d_outY));
 
     LOG_DEBUG("End deallocating image memory in GPU");
 
