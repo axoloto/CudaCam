@@ -55,6 +55,13 @@ bool ImguiApp::initWindow()
   return true;
 }
 
+bool ImguiApp::initWebcam()
+{
+  m_webcam = std::make_unique<io::webcam>();
+
+  return (m_webcam && !m_webcam->frame().empty());
+}
+
 bool ImguiApp::initOpenGL()
 {
   if (!gladLoadGL())
@@ -63,7 +70,7 @@ bool ImguiApp::initOpenGL()
   // Pixel buffer object filled by Cuda
   glGenBuffers(1, &m_pbo);
   glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, m_pbo);
-  glBufferData(GL_PIXEL_UNPACK_BUFFER_ARB, 1280 * 720 * sizeof(uint8_t), nullptr, GL_STREAM_DRAW_ARB);//wip
+  glBufferData(GL_PIXEL_UNPACK_BUFFER_ARB, m_webcam->frame().total() * sizeof(uint8_t), nullptr, GL_STREAM_DRAW_ARB);//wip
   glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
 
   glGenTextures(1, &m_texture);
@@ -75,6 +82,13 @@ bool ImguiApp::initOpenGL()
   glBindTexture(GL_TEXTURE_2D, 0);
 
   return true;
+}
+
+bool ImguiApp::initCvPipeline()
+{
+  m_cvPipeline = std::make_unique<cvp::cvPipeline>(m_pbo, m_webcam->frame().cols, m_webcam->frame().rows);
+
+  return m_cvPipeline.get();
 }
 
 bool ImguiApp::closeWindow()
@@ -125,13 +139,6 @@ bool ImguiApp::checkSDLStatus()
   return keepGoing;
 }
 
-bool ImguiApp::initCvPipeline()
-{
-  m_cvPipeline = std::make_unique<cvp::cvPipeline>(m_pbo);
-
-  return m_cvPipeline.get();
-}
-
 ImguiApp::ImguiApp()
   : m_nameApp("CudaCam " + Utils::GetVersions()),
     m_backGroundColor({ 0.0f, 0.0f, 0.0f, 1.00f }),
@@ -139,12 +146,19 @@ ImguiApp::ImguiApp()
     m_targetFps(60),
     m_currFps(60.0f),
     m_texture(0),
+    m_isCvPipelineEnabled(true),
     m_now(std::chrono::steady_clock::now()),
     m_init(false)
 {
   if (!initWindow())
   {
     LOG_ERROR("Failed to initialize application window");
+    return;
+  }
+
+  if (!initWebcam())
+  {
+    LOG_ERROR("Failed to initialize webcam");
     return;
   }
 
@@ -193,13 +207,9 @@ void ImguiApp::displayMainWidget()
 
   if (m_cvPipeline)
   {
-    bool isCudaProcEnabled = m_cvPipeline->isCudaProcEnabled();
-    if (ImGui::Checkbox("Cuda Processing", &isCudaProcEnabled))
-    {
-      m_cvPipeline->enableCudaProc(isCudaProcEnabled);
-    }
+    ImGui::Checkbox("Cuda Processing", &m_isCvPipelineEnabled);
 
-    if (isCudaProcEnabled)
+    if (m_isCvPipelineEnabled)
     {
       bool isGaussianFilterEnabled = m_cvPipeline->isGaussianFilterEnabled();
       if (ImGui::Checkbox("Noise Reduction", &isGaussianFilterEnabled))
@@ -214,19 +224,17 @@ void ImguiApp::displayMainWidget()
 
 void ImguiApp::displayLiveStream()
 {
-  if (!m_cvPipeline->isCudaProcEnabled())
+  if (!m_isCvPipelineEnabled)
   {
-    cv::Mat image = m_cvPipeline->inputFrame();
+    cv::Mat image = m_webcam->frame();
 
-    if (!image.empty())
+    if (!image.empty() && image.type() == CV_8UC3)
     {
-      cv::flip(image, image, 1);
+      //cv::flip(image, image, 1);
       cv::cvtColor(image, image, cv::COLOR_RGB2BGR);
 
       glBindTexture(GL_TEXTURE_2D, m_texture);
-
       glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, image.cols, image.rows, 0, GL_RGB, GL_UNSIGNED_BYTE, image.ptr());
-
       glBindTexture(GL_TEXTURE_2D, 0);
 
       ImGui::SetNextWindowSize(ImVec2(image.cols, image.rows), ImGuiCond_FirstUseEver);
@@ -234,6 +242,10 @@ void ImguiApp::displayLiveStream()
       ImGui::Text("%d x %d", image.cols, image.rows);
       ImGui::Image((void *)(intptr_t)m_texture, ImVec2(image.cols, image.rows));
       ImGui::End();
+    }
+    else
+    {
+      LOG_ERROR("Cannot display webcam image");
     }
   }
   else
@@ -284,7 +296,9 @@ void ImguiApp::run()
 
     displayMainWidget();
 
-    m_cvPipeline->process();
+    m_webcam->read();
+
+    m_cvPipeline->process(m_webcam->frame());
 
     displayLiveStream();
 

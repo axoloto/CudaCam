@@ -21,19 +21,12 @@ namespace cuda
 class cvPipeline
 {
 public:
-  cvPipeline(unsigned int pbo);
+  cvPipeline(const unsigned int pbo, const unsigned int inputImageCols, const unsigned int inputImageRows);
   ~cvPipeline();
 
   bool start();
   bool stop();
-  bool process();
-
-  cv::Mat inputFrame() const { return m_inputFrame; };
-
-  bool isRunning() const { return m_webcam && m_webcam->isOpened(); };
-
-  bool isCudaProcEnabled() const { return m_isCudaProcEnabled; }
-  void enableCudaProc(bool enable) { m_isCudaProcEnabled = enable; }
+  bool process(cv::Mat inputImage);
 
   bool isGaussianFilterEnabled() const { return m_isGaussianFilterEnabled; }
   void enableGaussianFilter(bool enable) { m_isGaussianFilterEnabled = enable; }
@@ -41,12 +34,8 @@ public:
 private:
   bool isCudaProcReady();
 
-  bool m_isCudaProcEnabled;
   bool m_isGaussianFilterEnabled;
 
-  cv::Mat m_inputFrame;
-  cv::Mat m_frameOut;//WIP
-  std::unique_ptr<cv::VideoCapture> m_webcam;
   std::unique_ptr<cuda::CannyEdgeRGB8U> m_cudaCannyEdge;
 };
 }// namespace cvp

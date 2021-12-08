@@ -10,6 +10,7 @@
 #include <chrono>
 
 #include "cvPipeline.hpp"
+#include "webcam.hpp"
 
 namespace App
 {
@@ -23,8 +24,9 @@ public:
 
 private:
   bool initWindow();
-  bool initCvPipeline();
+  bool initWebcam();
   bool initOpenGL();
+  bool initCvPipeline();
 
   bool closeWindow();
   bool checkSDLStatus();
@@ -55,6 +57,9 @@ private:
   std::array<float, 4> m_backGroundColor;
   bool m_init;
 
+  std::unique_ptr<io::webcam> m_webcam;
+
+  bool m_isCvPipelineEnabled;
   std::unique_ptr<cvp::cvPipeline> m_cvPipeline;
 
   std::chrono::steady_clock::time_point m_now;
