@@ -13,6 +13,7 @@ cvPipeline::cvPipeline(const unsigned int pbo, const unsigned int inputImageCols
 
 cvPipeline::~cvPipeline()
 {
+  int i = 0;
 }
 
 bool cvPipeline::isCudaProcReady()
@@ -43,8 +44,8 @@ bool cvPipeline::process(cv::Mat inputImage)
 
   m_cudaCannyEdge->runGrayConversion(30);// UI informed with blocked option
 
-  // if (m_isGaussianFilterEnabled)
-  //   m_cudaCannyEdge->runGaussianFilter(30);
+  if (m_isGaussianFilterEnabled)
+    m_cudaCannyEdge->runGaussianFilter();
 
   // m_cudaCannyEdge->unloadImage(m_inputFrame.ptr());
   //m_cudaCannyEdge->unloadImage(m_frameOut.ptr());

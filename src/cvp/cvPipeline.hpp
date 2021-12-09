@@ -15,7 +15,7 @@ namespace cuda
   template<class T, size_t nbChannels>
   class CannyEdge;
 
-  using CannyEdgeRGB8U = CannyEdge<uint8_t, 3>;
+  using CannyEdgeRGB8U = CannyEdge<unsigned char, 3>;
 }// namespace cuda
 
 class cvPipeline

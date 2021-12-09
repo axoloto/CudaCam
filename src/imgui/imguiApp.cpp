@@ -313,7 +313,7 @@ void ImguiApp::run()
 
     m_webcam->read();
 
-    // m_cvPipeline->process(m_webcam->frame());
+    m_cvPipeline->process(m_webcam->frame());
 
     displayLiveStream();
 
