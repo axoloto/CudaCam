@@ -222,7 +222,7 @@ void ImguiApp::displayMainWidget()
   if (m_cvPipeline)
   {
     ImGui::Checkbox("Cuda Processing", &m_isCvPipelineEnabled);
-
+    /*
     if (m_isCvPipelineEnabled)
     {
       bool isGaussianFilterEnabled = m_cvPipeline->isGaussianFilterEnabled();
@@ -231,6 +231,7 @@ void ImguiApp::displayMainWidget()
         m_cvPipeline->enableGaussianFilter(isGaussianFilterEnabled);
       }
     }
+    */
   }
 
   ImGui::End();
@@ -274,8 +275,8 @@ void ImguiApp::displayLiveStream()
 
     ImGui::SetNextWindowPos(ImVec2(150, 120), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(ImVec2(m_pboCols, m_pboRows), ImGuiCond_FirstUseEver);
-    ImGui::Begin("Cuda Live Stream");
-    ImGui::Text("%d x %d", m_pboCols, m_pboRows);
+    ImGui::Begin("Live Stream");
+    ImGui::Text("%d x %d CUDA", m_pboCols, m_pboRows);
     ImGui::Image((void *)(intptr_t)m_texture, ImVec2(m_pboCols, m_pboRows));
     ImGui::End();
   }
