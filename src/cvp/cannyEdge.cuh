@@ -32,8 +32,9 @@ namespace cuda
     void runGrayConversion(unsigned int blockSize);
     // Step 1 - Noise Reduction
     void runGaussianFilter();
+    void runGaussianFilterOut();
     // Step 2 - Gradient Calculation
-    void runGradient(unsigned int blockSize);
+    void runGradientOut(unsigned int blockSize);
     // Step 3 - Non-maximum suppression
     void runNonMaxSuppr(unsigned int blockSize);
     // Step 4 - Double threshold
@@ -51,17 +52,28 @@ namespace cuda
     unsigned int m_imageHeight;
     unsigned int m_nbChannels;
 
-    T *d_inRGB;
-    size_t d_inRGBPitch;
+    T *d_RGB;
+    size_t d_inPitch;
 
-    unsigned char *d_inMono;
-    size_t d_inMonoPitch;
+    unsigned char *d_mono;
+    size_t d_monoPitch;
 
-    unsigned char *d_outBlurr;
-    size_t d_outBlurrPitch;
+    unsigned char *d_blurr;
+    size_t d_blurrPitch;
 
-    unsigned char *d_outY;
-    size_t d_outPitch;
+    //unsigned char *d_sobelX;
+    float *d_sobelX;
+    size_t d_sobelXPitch;
+
+    //unsigned char *d_sobelY;
+    float *d_sobelY;
+    size_t d_sobelYPitch;
+
+    unsigned char *d_grad;
+    size_t d_gradPitch;
+
+    unsigned char *d_slope;
+    size_t d_slopePitch;
 
     struct cudaGraphicsResource *d_pbo;
 
@@ -73,23 +85,13 @@ namespace cuda
 #ifndef _CANNY_EDGE_KERNEL_
 #define _CANNY_EDGE_KERNEL_
 
-  __constant__ float GK[5][5];
-
-  // Greyscale conversion
-  // From 8UC3 to 8UC1
-  __global__ void RGB2Mono(const unsigned char *__restrict__ in, unsigned char *__restrict__ out, const unsigned int width, const unsigned int height, const unsigned int pitchIn, const unsigned int pitchOut)
-  {
-    int col = blockDim.x * blockIdx.x + threadIdx.x;
-    int row = blockDim.y * blockIdx.y + threadIdx.y;
-
-    if (col < width && row < height)
-    {
-      int iIn = row * pitchIn + 3 * col;
-      out[row * pitchOut + col] = in[iIn] * 0.21f + in[iIn + 1] * 0.72f + in[iIn + 2] * 0.07f;
-    }
-  }
-
-  __global__ void TEST(const unsigned char *__restrict__ in, unsigned char *__restrict__ out, const unsigned int width, const unsigned int height, const unsigned int pitchIn, const unsigned int pitchOut)
+  __global__ void TEST(
+    const unsigned char *const __restrict__ in,
+    unsigned char *const __restrict__ out,
+    const unsigned int width,
+    const unsigned int height,
+    const unsigned int pitchIn,
+    const unsigned int pitchOut)
   {
     int col = blockDim.x * blockIdx.x + threadIdx.x;
     int row = blockDim.y * blockIdx.y + threadIdx.y;
@@ -100,55 +102,172 @@ namespace cuda
     }
   }
 
-#define O_TILE_WIDTH 28// Must be -4 blockSize
+  constexpr float B_WEIGHT = 0.114f;
+  constexpr float G_WEIGHT = 0.587f;
+  constexpr float R_WEIGHT = 0.299f;
+
+  constexpr int B_WT = static_cast<int>(64.0f * B_WEIGHT + 0.5f);
+  constexpr int G_WT = static_cast<int>(64.0f * G_WEIGHT + 0.5f);
+  constexpr int R_WT = static_cast<int>(64.0f * R_WEIGHT + 0.5f);
+
+  // Greyscale conversion
+  __global__ void RGB2Mono(
+    const unsigned char *const __restrict__ rgb,
+    unsigned char *const __restrict__ mono,
+    const unsigned int width,
+    const unsigned int height,
+    const unsigned int pitchIn,
+    const unsigned int pitchOut)
+  {
+    const int col = blockDim.x * blockIdx.x + threadIdx.x;
+    const int row = blockDim.y * blockIdx.y + threadIdx.y;
+
+    if (col < width && row < height)
+    {
+      const int iRGB = row * pitchIn + 3 * col;
+      mono[row * pitchOut + col] = min(255, (rgb[iRGB] * B_WT + rgb[iRGB + 1] * G_WT + rgb[iRGB + 2] * R_WT) >> 6);
+    }
+  }
+
+  constexpr int G_O_TILE_WIDTH = 28;// Must be -4 blockSize
+
+  __constant__ float GK[5][5];
 
   // Gaussian Filter
-  __global__ void gaussianFilter5x5(const unsigned char *__restrict__ in, unsigned char *out, const unsigned int width, const unsigned int height, const unsigned int pitchIn, const unsigned int pitchOut)
+  __global__ void gaussianFilter5x5(
+    const unsigned char *const __restrict__ mono,
+    unsigned char *const __restrict__ blurr,
+    const unsigned int width,
+    const unsigned int height,
+    const unsigned int monoPitch,
+    const unsigned int blurrPitch)
   {
-    int tx = threadIdx.x;
-    int ty = threadIdx.y;
+    const int tx = threadIdx.x;
+    const int ty = threadIdx.y;
 
-    int col_o = O_TILE_WIDTH * blockIdx.x + tx;
-    int row_o = O_TILE_WIDTH * blockIdx.y + ty;
+    const int col_o = G_O_TILE_WIDTH * blockIdx.x + tx;
+    const int row_o = G_O_TILE_WIDTH * blockIdx.y + ty;
 
-    int row_i = row_o - 2;// maskWidth = 5/2
-    int col_i = col_o - 2;// maskHeight = 5/2
+    const int row_i = row_o - 2;// maskWidth  = 5/2
+    const int col_i = col_o - 2;// maskHeight = 5/2
 
-    __shared__ unsigned char in_s[O_TILE_WIDTH + 4][O_TILE_WIDTH + 4];// 2 halo cells on each side of the tile
+    __shared__ unsigned char mono_s[G_O_TILE_WIDTH + 4][G_O_TILE_WIDTH + 4];// 2 halo cells on each side of the tile
 
     if ((row_i >= 0) && (row_i < height) && (col_i >= 0) && (col_i < width))
     {
-      in_s[ty][tx] = in[row_i * pitchIn + col_i];
+      mono_s[ty][tx] = mono[row_i * monoPitch + col_i];
     }
     else
     {
-      in_s[ty][tx] = 0;
+      mono_s[ty][tx] = 0;
     }
 
     __syncthreads();
 
-    float fval = 0.0f;
-    if (ty < O_TILE_WIDTH && tx < O_TILE_WIDTH)
+    float fSum = 0.0f;
+    if (ty < G_O_TILE_WIDTH && tx < G_O_TILE_WIDTH)
     {
       for (int r = 0; r < 5; ++r)
       {
         for (int c = 0; c < 5; ++c)
         {
-          fval += GK[r][c] * (float)(in_s[ty + r][tx + c]);
+          fSum += GK[r][c] * (float)(mono_s[ty + r][tx + c]);
         }
       }
 
       if (col_o < width && row_o < height)
       {
-        out[row_o * pitchOut + col_o] = (unsigned char)fval;
+        blurr[row_o * blurrPitch + col_o] = (unsigned char)fSum;
       }
+    }
+  }
+
+  constexpr int S_O_TILE_WIDTH = 14;// Must be -2 blockSize
+
+  // Sobel X and Y
+  __global__ void sobelXY(
+    const unsigned char *const __restrict__ blurr,
+    float *const __restrict__ sobelX,
+    float *const __restrict__ sobelY,
+    const unsigned int width,
+    const unsigned int height,
+    const unsigned int blurrPitch,
+    const unsigned int sobelXPitch,
+    const unsigned int sobelYPitch)
+  {
+    int tx = threadIdx.x;
+    int ty = threadIdx.y;
+
+    int col_o = S_O_TILE_WIDTH * blockIdx.x + tx;
+    int row_o = S_O_TILE_WIDTH * blockIdx.y + ty;
+
+    int row_i = row_o - 1;// maskWidth = 3/2
+    int col_i = col_o - 1;// maskHeight = 3/2
+
+    __shared__ unsigned char blurr_s[S_O_TILE_WIDTH + 2][S_O_TILE_WIDTH + 2];// 1 halo cells on each side of the tile
+
+    if ((row_i >= 0) && (row_i < height) && (col_i >= 0) && (col_i < width))
+    {
+      blurr_s[ty][tx] = blurr[row_i * blurrPitch + col_i];
+    }
+    else
+    {
+      blurr_s[ty][tx] = 0;
+    }
+
+    __syncthreads();
+
+    if (ty < S_O_TILE_WIDTH && tx < S_O_TILE_WIDTH)
+    {
+      if (col_o < width && row_o < height)
+      {
+        // shared mem is shifted +1
+        int sumX = 0;
+        sumX += -blurr_s[ty][tx] + blurr_s[ty][tx + 2];
+        sumX += -2 * blurr_s[ty + 1][tx] + 2 * blurr_s[ty + 1][tx + 2];
+        sumX += -blurr_s[ty + 2][tx] + blurr_s[ty + 2][tx + 2];
+
+        sobelX[row_o * sobelXPitch + col_o] = (float)(sumX) / 8.0f;
+
+        int sumY = 0;
+        sumY += blurr_s[ty][tx] + 2 * blurr_s[ty][tx + 1] + blurr_s[ty][tx + 2];
+        sumY -= blurr_s[ty + 2][tx] + 2 * blurr_s[ty + 2][tx + 1] + blurr_s[ty + 2][tx + 2];
+
+        sobelY[row_o * sobelYPitch + col_o] = (float)(sumY) / 8.0f;
+      }
+    }
+  }
+
+  // Grad and Slope
+  __global__ void gradSlope(
+    const float *const __restrict__ sobelX,
+    const float *const __restrict__ sobelY,
+    unsigned char *const __restrict__ grad,
+    unsigned char *const __restrict__ slope,
+    const unsigned int width,
+    const unsigned int height,
+    const unsigned int sobelXPitch,
+    const unsigned int sobelYPitch,
+    const unsigned int gradPitch,
+    const unsigned int slopePitch)
+  {
+    const int col = blockDim.x * blockIdx.x + threadIdx.x;
+    const int row = blockDim.y * blockIdx.y + threadIdx.y;
+
+    if (col < width && row < height)
+    {
+      const float sX = sobelX[row * sobelXPitch + col];
+      const float sY = sobelY[row * sobelYPitch + col];
+
+      grad[row * gradPitch + col] = min(255, 3 * (unsigned char)sqrtf(sX * sX + sY * sY));
+      slope[row * slopePitch + col] =  min(255,(unsigned char)atan2(sX, sY));
     }
   }
 #endif
 
   template<class T, size_t nbChannels>
   CannyEdge<T, nbChannels>::CannyEdge(unsigned int pbo, unsigned int imageWidth, unsigned int imageHeight)
-    : m_isAlloc(false), m_nbChannels(nbChannels), m_imageWidth(imageWidth), m_imageHeight(imageHeight), d_inRGBPitch(0), d_inMonoPitch(0)
+    : m_isAlloc(false), m_nbChannels(nbChannels), m_imageWidth(imageWidth), m_imageHeight(imageHeight), d_inPitch(0), d_monoPitch(0)
   {
     checkCudaErrors(cudaGraphicsGLRegisterBuffer(&d_pbo, pbo, cudaGraphicsMapFlagsWriteDiscard));
     initAlloc();
@@ -171,7 +290,7 @@ namespace cuda
 
     LOG_DEBUG("Start loading image in GPU");
 
-    checkCudaErrors(cudaMemcpy2D(d_inRGB, d_inRGBPitch, hImage, hPitch, m_imageWidth * m_nbChannels, m_imageHeight, cudaMemcpyHostToDevice));
+    checkCudaErrors(cudaMemcpy2D(d_RGB, d_inPitch, hImage, hPitch, m_imageWidth * m_nbChannels, m_imageHeight, cudaMemcpyHostToDevice));
 
     LOG_DEBUG("End loading image in GPU");
   }
@@ -187,7 +306,7 @@ namespace cuda
 
     LOG_DEBUG("Start unloading image from GPU");
 
-    checkCudaErrors(cudaMemcpy2D(hImage, m_imageWidth, d_outBlurr, d_outBlurrPitch, m_imageWidth, m_imageHeight, cudaMemcpyDeviceToHost));
+    checkCudaErrors(cudaMemcpy2D(hImage, m_imageWidth, d_blurr, d_blurrPitch, m_imageWidth, m_imageHeight, cudaMemcpyDeviceToHost));
 
     LOG_DEBUG("End unloading image in GPU");
   }
@@ -202,13 +321,30 @@ namespace cuda
 
     dim3 blocks(blockSize, blockSize, 1);
     dim3 grid((m_imageWidth + blockSize - 1) / blockSize, (m_imageHeight + blockSize - 1) / blockSize, 1);
-    RGB2Mono<<<grid, blocks>>>(d_inRGB, d_inMono, m_imageWidth, m_imageHeight, d_inRGBPitch, d_inMonoPitch);
+    RGB2Mono<<<grid, blocks>>>(d_RGB, d_mono, m_imageWidth, m_imageHeight, d_inPitch, d_monoPitch);
 
     LOG_DEBUG("End Gray Conversion Cuda Kernel");
   }
 
   template<class T, size_t nbChannels>
   void CannyEdge<T, nbChannels>::runGaussianFilter()
+  {
+    if (!CannyEdge::readyToRun(32))
+      return;
+
+    LOG_DEBUG("Start Gaussian Filter Cuda Kernel");
+
+    int outputBlockSize = 28;
+    int inputBlockSize = 32;// WIP Hardcoded in kernel, 30 + 2 + 2
+    dim3 blocks(inputBlockSize, inputBlockSize, 1);
+    dim3 grid((m_imageWidth + outputBlockSize - 1) / outputBlockSize, (m_imageHeight + outputBlockSize - 1) / outputBlockSize, 1);
+    gaussianFilter5x5<<<grid, blocks>>>(d_mono, d_blurr, m_imageWidth, m_imageHeight, d_monoPitch, d_blurrPitch);
+
+    LOG_DEBUG("End Gaussian Filter Cuda Kernel");
+  }
+
+  template<class T, size_t nbChannels>
+  void CannyEdge<T, nbChannels>::runGaussianFilterOut()
   {
     if (!CannyEdge::readyToRun(32))
       return;
@@ -224,7 +360,7 @@ namespace cuda
     int inputBlockSize = 32;// WIP Hardcoded in kernel, 30 + 2 + 2
     dim3 blocks(inputBlockSize, inputBlockSize, 1);
     dim3 grid((m_imageWidth + outputBlockSize - 1) / outputBlockSize, (m_imageHeight + outputBlockSize - 1) / outputBlockSize, 1);
-    gaussianFilter5x5<<<grid, blocks>>>(d_inMono, outPbo, m_imageWidth, m_imageHeight, d_inMonoPitch, m_imageWidth);
+    gaussianFilter5x5<<<grid, blocks>>>(d_mono, outPbo, m_imageWidth, m_imageHeight, d_monoPitch, m_imageWidth);
 
     checkCudaErrors(cudaGraphicsUnmapResources(1, &d_pbo, 0));
 
@@ -232,7 +368,37 @@ namespace cuda
   }
 
   template<class T, size_t nbChannels>
-  void CannyEdge<T, nbChannels>::runGradient(unsigned int blockSize){};
+  void CannyEdge<T, nbChannels>::runGradientOut(unsigned int iblockSize)
+  {
+    if (!CannyEdge::readyToRun(iblockSize))
+      return;
+
+    LOG_DEBUG("Start Gradient Cuda Kernel");
+    int outputBlockSize = 14;
+    int inputBlockSize = 16;// WIP Hardcoded in kernel, 30 + 1 + 1
+    dim3 blocks(inputBlockSize, inputBlockSize, 1);
+    dim3 grid((m_imageWidth + outputBlockSize - 1) / outputBlockSize, (m_imageHeight + outputBlockSize - 1) / outputBlockSize, 1);
+
+    LOG_DEBUG(" 1-Sobel Cuda Kernel");
+    sobelXY<<<grid, blocks>>>(d_blurr, d_sobelX, d_sobelY, m_imageWidth, m_imageHeight, d_blurrPitch, d_sobelXPitch / sizeof(float), d_sobelYPitch / sizeof(float));
+
+    size_t dumbSize;
+    unsigned char *outPbo;
+    checkCudaErrors(cudaGraphicsMapResources(1, &d_pbo, 0));
+    checkCudaErrors(cudaGraphicsResourceGetMappedPointer((void **)&outPbo, &dumbSize, d_pbo));
+
+    int blockSize = 32;
+    dim3 yblocks(blockSize, blockSize, 1);
+    dim3 ygrid((m_imageWidth + blockSize - 1) / blockSize, (m_imageHeight + blockSize - 1) / blockSize, 1);
+
+    LOG_DEBUG(" 2-Gradient Cuda Kernel");//         d_grad                                                                      d_gradPitch
+    gradSlope<<<ygrid, yblocks>>>(d_sobelX, d_sobelY, outPbo, d_slope, m_imageWidth, m_imageHeight, d_sobelXPitch / sizeof(float), d_sobelYPitch / sizeof(float), m_imageWidth, d_slopePitch);
+
+    checkCudaErrors(cudaGraphicsUnmapResources(1, &d_pbo, 0));
+
+    LOG_DEBUG("End Gradient Cuda Kernel");
+  }
+
   template<class T, size_t nbChannels>
   void CannyEdge<T, nbChannels>::runNonMaxSuppr(unsigned int blockSize){};
   template<class T, size_t nbChannels>
@@ -245,9 +411,15 @@ namespace cuda
   {
     LOG_DEBUG("Start allocating image memory in GPU");
 
-    checkCudaErrors(cudaMallocPitch(&d_inRGB, &d_inRGBPitch, m_imageWidth * m_nbChannels, m_imageHeight));
-    checkCudaErrors(cudaMallocPitch(&d_inMono, &d_inMonoPitch, m_imageWidth, m_imageHeight));
-    checkCudaErrors(cudaMallocPitch(&d_outBlurr, &d_outBlurrPitch, m_imageWidth, m_imageHeight));
+    checkCudaErrors(cudaMallocPitch(&d_RGB, &d_inPitch, m_imageWidth * m_nbChannels, m_imageHeight));
+    checkCudaErrors(cudaMallocPitch(&d_mono, &d_monoPitch, m_imageWidth, m_imageHeight));
+    checkCudaErrors(cudaMallocPitch(&d_blurr, &d_blurrPitch, m_imageWidth, m_imageHeight));
+    checkCudaErrors(cudaMallocPitch(&d_sobelX, &d_sobelXPitch, m_imageWidth * sizeof(float), m_imageHeight));
+    //checkCudaErrors(cudaMallocPitch(&d_sobelX, &d_sobelXPitch, m_imageWidth , m_imageHeight));
+    checkCudaErrors(cudaMallocPitch(&d_sobelY, &d_sobelYPitch, m_imageWidth * sizeof(float), m_imageHeight));
+    //checkCudaErrors(cudaMallocPitch(&d_sobelY, &d_sobelYPitch, m_imageWidth , m_imageHeight));
+    checkCudaErrors(cudaMallocPitch(&d_grad, &d_gradPitch, m_imageWidth, m_imageHeight));
+    checkCudaErrors(cudaMallocPitch(&d_slope, &d_slopePitch, m_imageWidth, m_imageHeight));
 
     std::array<std::array<float, 5>, 5> GK_CPU = { { { 2, 4, 5, 4, 2 }, { 4, 9, 12, 9, 4 }, { 5, 12, 15, 12, 5 }, { 4, 9, 12, 9, 4 }, { 2, 4, 5, 4, 2 } } };
     for (int i = 0; i < 5; ++i)
@@ -269,8 +441,13 @@ namespace cuda
   {
     LOG_DEBUG("Start deallocating image memory in GPU");
 
-    checkCudaErrors(cudaFree(d_inRGB));
-    checkCudaErrors(cudaFree(d_inMono));
+    checkCudaErrors(cudaFree(d_RGB));
+    checkCudaErrors(cudaFree(d_mono));
+    checkCudaErrors(cudaFree(d_blurr));
+    checkCudaErrors(cudaFree(d_sobelX));
+    checkCudaErrors(cudaFree(d_sobelY));
+    checkCudaErrors(cudaFree(d_grad));
+    checkCudaErrors(cudaFree(d_slope));
 
     LOG_DEBUG("End deallocating image memory in GPU");
 

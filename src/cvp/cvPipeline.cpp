@@ -41,12 +41,13 @@ bool cvPipeline::process(cv::Mat inputImage)
 
   m_cudaCannyEdge->loadInputImage(inputImage.ptr(), inputImage.step);
 
-  m_cudaCannyEdge->runGrayConversion(30);// UI informed with blocked option
+  m_cudaCannyEdge->runGrayConversion(32);// UI informed with blocked option
 
   // if (m_isGaussianFilterEnabled)
   m_cudaCannyEdge->runGaussianFilter();
 
-  // cv::Mat mat;
+  m_cudaCannyEdge->runGradientOut(30);
+  cv::Mat mat;
   //mat.create(inputImage.size(), CV_8UC1);
   //m_cudaCannyEdge->unloadImage(mat.ptr());
 
