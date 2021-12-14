@@ -10,6 +10,7 @@
 #include <cuda_gl_interop.h>
 
 #include "logging.hpp"
+#include "define.hpp"
 #include "helper.cuh"
 
 namespace cvp
@@ -43,7 +44,7 @@ namespace cuda
     // Step 3 - Non-maximum suppression
     void _runNonMaxSuppr();
     // Step 4 - Double threshold
-    void runDoubleThresh();
+    void _runDoubleThresh();
     // Step 5 - Edge Tracking by hysteresis
     void runEdgeTracking();
 
@@ -76,6 +77,9 @@ namespace cuda
 
     unsigned char *d_nms;
     size_t d_nmsPitch;
+
+    unsigned char *d_thresh;
+    size_t d_threshPitch;
 
     struct cudaGraphicsResource *d_pbo;
 
@@ -350,6 +354,28 @@ namespace cuda
       }
     }
   }
+
+  // Double Threshold, finding Final Edges and Candidate Edges
+  __global__ void doubleThreshold(
+    const unsigned char *const __restrict__ nms,
+    unsigned char *const __restrict__ thresh,
+    const unsigned int width,
+    const unsigned int height,
+    const unsigned int nmsPitch,
+    const unsigned int threshPitch)
+  {
+    const int col = blockDim.x * blockIdx.x + threadIdx.x;
+    const int row = blockDim.y * blockIdx.y + threadIdx.y;
+
+    if (col < width && row < height)
+    {
+      const unsigned char nmsVal = nms[row * nmsPitch + col];
+
+      thresh[row * threshPitch + col] = nmsVal > 80 ? 255 : nmsVal > 15 ? 25
+                                                                        : 0;
+    }
+  }
+
 #endif
 
   template<class T, size_t nbChannels>
@@ -381,6 +407,7 @@ namespace cuda
     _runGaussianFilter();
     _runGradient();
     _runNonMaxSuppr();
+    _runDoubleThresh();
 
     LOG_DEBUG("End Canny Edge Filter on CUDA device");
   }
@@ -460,6 +487,7 @@ namespace cuda
     LOG_DEBUG("End Gradient Computation");
   }
 
+  /*
   template<class T, size_t nbChannels>
   void CannyEdge<T, nbChannels>::_runNonMaxSuppr()
   {
@@ -478,10 +506,40 @@ namespace cuda
     checkCudaErrors(cudaGraphicsUnmapResources(1, &d_pbo, 0));
 
     LOG_DEBUG("End Non Max Suppression");
+  }*/
+
+  template<class T, size_t nbChannels>
+  void CannyEdge<T, nbChannels>::_runNonMaxSuppr()
+  {
+    LOG_DEBUG("Start Non Max Suppression");
+
+    int outputBlockSize = m_inputBlockSize - 2;
+    dim3 blocks(m_inputBlockSize, m_inputBlockSize, 1);
+    dim3 grid((m_imageWidth + outputBlockSize - 1) / outputBlockSize, (m_imageHeight + outputBlockSize - 1) / outputBlockSize, 1);
+    nonMaxSuppr<<<grid, blocks>>>(d_grad, d_slope, d_nms, m_imageWidth, m_imageHeight, d_gradPitch / sizeof(float), d_slopePitch / sizeof(float), d_nmsPitch);
+
+    LOG_DEBUG("End Non Max Suppression");
   }
 
   template<class T, size_t nbChannels>
-  void CannyEdge<T, nbChannels>::runDoubleThresh(){};
+  void CannyEdge<T, nbChannels>::_runDoubleThresh()
+  {
+    LOG_DEBUG("Start Double Threshold");
+
+    size_t dumbSize;
+    unsigned char *outPbo;
+    checkCudaErrors(cudaGraphicsMapResources(1, &d_pbo, 0));
+    checkCudaErrors(cudaGraphicsResourceGetMappedPointer((void **)&outPbo, &dumbSize, d_pbo));
+
+    dim3 blocks(m_inputBlockSize, m_inputBlockSize, 1);
+    dim3 grid((m_imageWidth + m_inputBlockSize - 1) / m_inputBlockSize, (m_imageHeight + m_inputBlockSize - 1) / m_inputBlockSize, 1);
+    doubleThreshold<<<grid, blocks>>>(d_nms, outPbo, m_imageWidth, m_imageHeight, d_nmsPitch, m_imageWidth);
+
+    checkCudaErrors(cudaGraphicsUnmapResources(1, &d_pbo, 0));
+
+    LOG_DEBUG("End Double Threshold");
+  }
+
   template<class T, size_t nbChannels>
   void CannyEdge<T, nbChannels>::runEdgeTracking(){};
 
@@ -503,6 +561,8 @@ namespace cuda
     checkCudaErrors(cudaMallocPitch(&d_slope, &d_slopePitch, m_imageWidth * sizeof(float), m_imageHeight));
 
     checkCudaErrors(cudaMallocPitch(&d_nms, &d_nmsPitch, m_imageWidth, m_imageHeight));
+
+    checkCudaErrors(cudaMallocPitch(&d_thresh, &d_threshPitch, m_imageWidth, m_imageHeight));
 
     std::array<std::array<float, 5>, 5> GK_CPU = { { { 2, 4, 5, 4, 2 }, { 4, 9, 12, 9, 4 }, { 5, 12, 15, 12, 5 }, { 4, 9, 12, 9, 4 }, { 2, 4, 5, 4, 2 } } };
     for (int i = 0; i < 5; ++i)
@@ -532,6 +592,7 @@ namespace cuda
     checkCudaErrors(cudaFree(d_grad));
     checkCudaErrors(cudaFree(d_slope));
     checkCudaErrors(cudaFree(d_nms));
+    checkCudaErrors(cudaFree(d_thresh));
 
     LOG_DEBUG("End deallocating image memory in GPU");
 

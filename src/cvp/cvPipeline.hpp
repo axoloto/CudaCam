@@ -3,6 +3,8 @@
 #include <opencv2/core.hpp>
 #include <opencv2/videoio.hpp>
 
+#include "define.hpp"
+
 #include <memory>
 
 // Compiled with NVCC but not including any cuda calls to be used by Cpp Compilers further on
@@ -26,7 +28,7 @@ public:
 
   bool start();
   bool stop();
-  bool process(cv::Mat inputImage);
+  bool process(cv::Mat inputImage, CannyStage finalStage);
 
   bool isGaussianFilterEnabled() const { return m_isGaussianFilterEnabled; }
   void enableGaussianFilter(bool enable) { m_isGaussianFilterEnabled = enable; }

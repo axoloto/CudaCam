@@ -20,7 +20,7 @@ bool cvPipeline::isCudaProcReady()
   return (m_cudaCannyEdge.get() != nullptr);
 }
 
-bool cvPipeline::process(cv::Mat inputImage)
+bool cvPipeline::process(cv::Mat inputImage, CannyStage finalStage)
 {
   if (!isCudaProcReady())
   {
@@ -41,7 +41,7 @@ bool cvPipeline::process(cv::Mat inputImage)
 
   m_cudaCannyEdge->run(inputImage);
 
-  //cv::Mat mat;
+  cv::Mat mat;
   //mat.create(inputImage.size(), CV_8UC1);
   //m_cudaCannyEdge->unloadImage(mat.ptr());
 

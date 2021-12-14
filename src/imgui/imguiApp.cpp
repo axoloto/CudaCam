@@ -152,6 +152,8 @@ ImguiApp::ImguiApp()
     m_totalTimeMs(0),
     m_totalFrames(0),
     m_isCvPipelineEnabled(true),
+    m_isZoomEnabled(true),
+    m_cvFinalStage(std::make_pair(cvp::CANNY_STAGES.begin()->first, cvp::CANNY_STAGES.begin()->second)),
     m_now(std::chrono::steady_clock::now()),
     m_init(false)
 {
@@ -219,6 +221,8 @@ void ImguiApp::displayMainWidget()
   ImGui::Separator();
   ImGui::Spacing();
 
+  ImGui::Checkbox("Zoom", &m_isZoomEnabled);
+
   if (m_cvPipeline)
   {
     bool isRunning = m_webcam->isRunning();
@@ -232,16 +236,28 @@ void ImguiApp::displayMainWidget()
     }
 
     ImGui::Checkbox("Cuda Processing", &m_isCvPipelineEnabled);
-    /*
+
     if (m_isCvPipelineEnabled)
     {
-      bool isGaussianFilterEnabled = m_cvPipeline->isGaussianFilterEnabled();
-      if (ImGui::Checkbox("Noise Reduction", &isGaussianFilterEnabled))
+      // Selection of the final stage of the pipeline
+      const auto &selFinalStage = (cvp::CANNY_STAGES.find(m_cvFinalStage.first) != cvp::CANNY_STAGES.end())
+                                    ? cvp::CANNY_STAGES.find(m_cvFinalStage.first)->second
+                                    : cvp::CANNY_STAGES.cbegin()->second;
+
+      if (ImGui::BeginCombo("Final Stage", selFinalStage.c_str()))
       {
-        m_cvPipeline->enableGaussianFilter(isGaussianFilterEnabled);
+        for (const auto &stage : cvp::CANNY_STAGES)
+        {
+          if (ImGui::Selectable(stage.second.c_str(), m_cvFinalStage.first == stage.first))
+          {
+            m_cvFinalStage = stage;
+
+            LOG_INFO("Application correctly switched to {}", m_cvFinalStage.first);
+          }
+        }
+        ImGui::EndCombo();
       }
     }
-    */
   }
 
   ImGui::End();
@@ -290,7 +306,7 @@ void ImguiApp::displayLiveStream()
     ImGui::Image((void *)(intptr_t)m_texture, ImVec2(m_pboCols, m_pboRows));
 
     ImVec2 pos = ImGui::GetCursorScreenPos();
-    if (0 && ImGui::IsItemHovered())
+    if (m_isZoomEnabled && ImGui::IsItemHovered())
     {
       auto &io = ImGui::GetIO();
       ImGui::BeginTooltip();
@@ -353,7 +369,7 @@ void ImguiApp::run()
     {
       m_webcam->read();
 
-      m_cvPipeline->process(m_webcam->frame());
+      m_cvPipeline->process(m_webcam->frame(), m_cvFinalStage.first);
     }
 
     displayLiveStream();

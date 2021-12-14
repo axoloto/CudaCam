@@ -46,6 +46,8 @@ private:
   size_t m_totalFrames;
   int m_targetFps;
 
+  bool m_isZoomEnabled;
+
   // Rendering
   size_t m_pboCols, m_pboRows;
   GLuint m_pbo;
@@ -58,6 +60,7 @@ private:
   std::unique_ptr<io::webcam> m_webcam;
 
   bool m_isCvPipelineEnabled;
+  std::pair<cvp::CannyStage,std::string> m_cvFinalStage;
   std::unique_ptr<cvp::cvPipeline> m_cvPipeline;
 
   std::chrono::steady_clock::time_point m_now;
