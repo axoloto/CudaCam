@@ -6,7 +6,7 @@
 
 #include <stdio.h>
 #include <stdint.h>
-
+#include <opencv2/core.hpp>
 #include <cuda_gl_interop.h>
 
 #include "logging.hpp"
@@ -25,33 +25,33 @@ namespace cuda
     CannyEdge(unsigned int pbo, unsigned int imageWidth, unsigned int imageHeight);
     ~CannyEdge();
 
-    void loadInputImage(unsigned char *ptrCPU, size_t pitchCPU);
-    void unloadImage(unsigned char *ptrCPU);// Not needed anymore, using interop opengl cuda
+    void unloadImage(T *ptrCPU);// Not needed anymore, using interop opengl cuda
 
+    void run(cv::Mat input);
+
+  private:
+    void _initAlloc();
+    void _endAlloc();
+
+    void _loadInputImage(T *ptrCPU, size_t pitchCPU);
     // Step 0 - Gray Conversion
-    void runGrayConversion(unsigned int blockSize);
+    void _runGrayConversion();
     // Step 1 - Noise Reduction
-    void runGaussianFilter();
-    void runGaussianFilterOut();
+    void _runGaussianFilter();
     // Step 2 - Gradient Calculation
-    void runGradient(unsigned int blockSize);
-    void runGradientOut(unsigned int blockSize);
+    void _runGradient();
     // Step 3 - Non-maximum suppression
-    void runNonMaxSuppr(unsigned int blockSize);
+    void _runNonMaxSuppr();
     // Step 4 - Double threshold
-    void runDoubleThresh(unsigned int blockSize);
+    void runDoubleThresh();
     // Step 5 - Edge Tracking by hysteresis
-    void runEdgeTracking(unsigned int blockSize);
-
-  protected:
-    void initAlloc();
-    void endAlloc();
-
-    bool readyToRun(unsigned int blockSize);
+    void runEdgeTracking();
 
     unsigned int m_imageWidth;
     unsigned int m_imageHeight;
     unsigned int m_nbChannels;
+
+    int m_inputBlockSize;
 
     T *d_RGB;
     size_t d_inPitch;
@@ -62,15 +62,12 @@ namespace cuda
     unsigned char *d_blurr;
     size_t d_blurrPitch;
 
-    //unsigned char *d_sobelX;
     float *d_sobelX;
     size_t d_sobelXPitch;
 
-    //unsigned char *d_sobelY;
     float *d_sobelY;
     size_t d_sobelYPitch;
 
-    //unsigned char *d_grad;
     float *d_grad;
     size_t d_gradPitch;
 
@@ -249,7 +246,6 @@ namespace cuda
   __global__ void gradSlope(
     const float *const __restrict__ sobelX,
     const float *const __restrict__ sobelY,
-    // unsigned char *const __restrict__ grad,
     float *const __restrict__ grad,
     float *const __restrict__ slope,
     const unsigned int width,
@@ -267,7 +263,6 @@ namespace cuda
       const float sX = sobelX[row * sobelXPitch + col];
       const float sY = sobelY[row * sobelYPitch + col];
 
-      // grad[row * gradPitch + col] = min(255, (unsigned char)sqrtf(sX * sX + sY * sY));
       grad[row * gradPitch + col] = 4 * sqrtf(sX * sX + sY * sY);
       slope[row * slopePitch + col] = atan2(sX, sY);
     }
@@ -277,7 +272,6 @@ namespace cuda
 
   // Non Maximum Suppression
   __global__ void nonMaxSuppr(
-    // const unsigned char *const __restrict__ grad,
     const float *const __restrict__ grad,
     const float *const __restrict__ slope,
     unsigned char *const __restrict__ nms,
@@ -296,7 +290,6 @@ namespace cuda
     int row_i = row_o - 1;
     int col_i = col_o - 1;
 
-    //__shared__ unsigned char grad_s[N_O_TILE_WIDTH + 2][N_O_TILE_WIDTH + 2];// 1 halo cells on each side of the tile
     __shared__ float grad_s[N_O_TILE_WIDTH + 2][N_O_TILE_WIDTH + 2];// 1 halo cells on each side of the tile
 
     if ((row_i >= 0) && (row_i < height) && (col_i >= 0) && (col_i < width))
@@ -314,7 +307,6 @@ namespace cuda
     {
       if (col_o < width && row_o < height)
       {
-        //const unsigned char gradVal = grad_s[ty + 1][tx + 1];
         const float gradVal = grad_s[ty + 1][tx + 1];
         float angle = slope[row_o * slopePitch + col_o] * 180.0f / CUDART_PI_F;
         if (angle < 0.0f) angle += 180.0f;
@@ -327,12 +319,8 @@ namespace cuda
                   : ((67.5f < angle && angle <= 112.5f) ? make_uchar2(grad_s[ty + 1][tx], grad_s[ty - 1][tx])
                   : ((112.5f < angle && angle <= 157.5f) ? make_uchar2(grad_s[ty - 1][tx - 1], grad_s[ty + 1][tx + 1])
                   : make_uchar2(0, 0))));
-        // clang-format on
-
-        
-*/
-        //  uchar q = 0;
-        //  uchar r = 0;
+        // clang-format on    
+        */
         float q = 0.0f;
         float r = 0.0f;
 
@@ -358,8 +346,6 @@ namespace cuda
         }
 
         // Suppressing values wich are not maximums
-        //const unsigned char gradVal = grad_s[ty + 1][tx + 1];
-        // nms[row_o * nmsPitch + col_o] = (q <= gradVal && r <= gradVal) ? gradVal : 0;
         nms[row_o * nmsPitch + col_o] = (q <= gradVal && r <= gradVal) ? min((unsigned char)gradVal, 255) : 0;
       }
     }
@@ -368,20 +354,39 @@ namespace cuda
 
   template<class T, size_t nbChannels>
   CannyEdge<T, nbChannels>::CannyEdge(unsigned int pbo, unsigned int imageWidth, unsigned int imageHeight)
-    : m_isAlloc(false), m_nbChannels(nbChannels), m_imageWidth(imageWidth), m_imageHeight(imageHeight), d_inPitch(0), d_monoPitch(0)
+    : m_isAlloc(false), m_nbChannels(nbChannels), m_imageWidth(imageWidth), m_imageHeight(imageHeight), m_inputBlockSize(32), d_inPitch(0), d_monoPitch(0)
   {
     checkCudaErrors(cudaGraphicsGLRegisterBuffer(&d_pbo, pbo, cudaGraphicsMapFlagsWriteDiscard));
-    initAlloc();
+    _initAlloc();
   };
 
   template<class T, size_t nbChannels>
   CannyEdge<T, nbChannels>::~CannyEdge()
   {
-    endAlloc();
+    _endAlloc();
   }
 
   template<class T, size_t nbChannels>
-  void CannyEdge<T, nbChannels>::loadInputImage(unsigned char *hImage, size_t hPitch)// Need to add checks
+  void CannyEdge<T, nbChannels>::run(cv::Mat input)// Need to add checks
+  {
+    if (!m_isAlloc)
+    {
+      LOG_ERROR("Cannot Process Canny Edge Filter, missing allocation");
+    }
+
+    LOG_DEBUG("Start Canny Edge Filter on CUDA device");
+
+    _loadInputImage(input.ptr(), input.step);
+    _runGrayConversion();
+    _runGaussianFilter();
+    _runGradient();
+    _runNonMaxSuppr();
+
+    LOG_DEBUG("End Canny Edge Filter on CUDA device");
+  }
+
+  template<class T, size_t nbChannels>
+  void CannyEdge<T, nbChannels>::_loadInputImage(T *hImage, size_t hPitch)// Need to add checks
   {
     if (!hImage || hPitch == 0)
     {
@@ -397,7 +402,7 @@ namespace cuda
   }
 
   template<class T, size_t nbChannels>
-  void CannyEdge<T, nbChannels>::unloadImage(unsigned char *hImage)
+  void CannyEdge<T, nbChannels>::unloadImage(T *hImage)
   {
     if (!hImage)
     {
@@ -413,164 +418,90 @@ namespace cuda
   }
 
   template<class T, size_t nbChannels>
-  void CannyEdge<T, nbChannels>::runGrayConversion(unsigned int blockSize)
+  void CannyEdge<T, nbChannels>::_runGrayConversion()
   {
-    if (!CannyEdge::readyToRun(blockSize))
-      return;
+    LOG_DEBUG("Start Gray Conversion");
 
-    LOG_DEBUG("Start Gray Conversion Cuda Kernel");
-
-    dim3 blocks(blockSize, blockSize, 1);
-    dim3 grid((m_imageWidth + blockSize - 1) / blockSize, (m_imageHeight + blockSize - 1) / blockSize, 1);
+    dim3 blocks(m_inputBlockSize, m_inputBlockSize, 1);
+    dim3 grid((m_imageWidth + m_inputBlockSize - 1) / m_inputBlockSize, (m_imageHeight + m_inputBlockSize - 1) / m_inputBlockSize, 1);
     RGB2Mono<<<grid, blocks>>>(d_RGB, d_mono, m_imageWidth, m_imageHeight, d_inPitch, d_monoPitch);
 
-    LOG_DEBUG("End Gray Conversion Cuda Kernel");
+    LOG_DEBUG("End Gray Conversion");
   }
 
   template<class T, size_t nbChannels>
-  void CannyEdge<T, nbChannels>::runGaussianFilter()
+  void CannyEdge<T, nbChannels>::_runGaussianFilter()
   {
-    if (!CannyEdge::readyToRun(32))
-      return;
+    LOG_DEBUG("Start Gaussian Filter");
 
-    LOG_DEBUG("Start Gaussian Filter Cuda Kernel");
-
-    int outputBlockSize = 28;
-    int inputBlockSize = 32;// WIP Hardcoded in kernel, 30 + 2 + 2
-    dim3 blocks(inputBlockSize, inputBlockSize, 1);
+    int outputBlockSize = m_inputBlockSize - 4;//2 halo cells on each border
+    dim3 blocks(m_inputBlockSize, m_inputBlockSize, 1);
     dim3 grid((m_imageWidth + outputBlockSize - 1) / outputBlockSize, (m_imageHeight + outputBlockSize - 1) / outputBlockSize, 1);
     gaussianFilter5x5<<<grid, blocks>>>(d_mono, d_blurr, m_imageWidth, m_imageHeight, d_monoPitch, d_blurrPitch);
 
-    LOG_DEBUG("End Gaussian Filter Cuda Kernel");
+    LOG_DEBUG("End Gaussian Filter");
   }
 
   template<class T, size_t nbChannels>
-  void CannyEdge<T, nbChannels>::runGaussianFilterOut()
+  void CannyEdge<T, nbChannels>::_runGradient()
   {
-    if (!CannyEdge::readyToRun(32))
-      return;
+    LOG_DEBUG("Start Gradient Computation");
+    dim3 blocks(m_inputBlockSize, m_inputBlockSize, 1);
 
-    LOG_DEBUG("Start Gaussian Filter Cuda Kernel");
+    LOG_DEBUG(" 1-Sobel");
+    int outputBlockSize = m_inputBlockSize - 2;//1 halo cell on each border
+    dim3 sobelGrid((m_imageWidth + outputBlockSize - 1) / outputBlockSize, (m_imageHeight + outputBlockSize - 1) / outputBlockSize, 1);
+    sobelXY<<<sobelGrid, blocks>>>(d_blurr, d_sobelX, d_sobelY, m_imageWidth, m_imageHeight, d_blurrPitch, d_sobelXPitch / sizeof(float), d_sobelYPitch / sizeof(float));
 
-    unsigned char *outPbo;
-    size_t dumbSize;
-    checkCudaErrors(cudaGraphicsMapResources(1, &d_pbo, 0));
-    checkCudaErrors(cudaGraphicsResourceGetMappedPointer((void **)&outPbo, &dumbSize, d_pbo));
+    LOG_DEBUG(" 2-Gradient");
+    dim3 gradGrid((m_imageWidth + m_inputBlockSize - 1) / m_inputBlockSize, (m_imageHeight + m_inputBlockSize - 1) / m_inputBlockSize, 1);
+    gradSlope<<<gradGrid, blocks>>>(d_sobelX, d_sobelY, d_grad, d_slope, m_imageWidth, m_imageHeight, d_sobelXPitch / sizeof(float), d_sobelYPitch / sizeof(float), d_gradPitch / sizeof(float), d_slopePitch / sizeof(float));
 
-    int outputBlockSize = 28;
-    int inputBlockSize = 32;// WIP Hardcoded in kernel, 30 + 2 + 2
-    dim3 blocks(inputBlockSize, inputBlockSize, 1);
-    dim3 grid((m_imageWidth + outputBlockSize - 1) / outputBlockSize, (m_imageHeight + outputBlockSize - 1) / outputBlockSize, 1);
-    gaussianFilter5x5<<<grid, blocks>>>(d_mono, outPbo, m_imageWidth, m_imageHeight, d_monoPitch, m_imageWidth);
-
-    checkCudaErrors(cudaGraphicsUnmapResources(1, &d_pbo, 0));
-
-    LOG_DEBUG("End Gaussian Filter Cuda Kernel");
+    LOG_DEBUG("End Gradient Computation");
   }
 
   template<class T, size_t nbChannels>
-  void CannyEdge<T, nbChannels>::runGradient(unsigned int iblockSize)
+  void CannyEdge<T, nbChannels>::_runNonMaxSuppr()
   {
-    if (!CannyEdge::readyToRun(iblockSize))
-      return;
-
-    LOG_DEBUG("Start Gradient Cuda Kernel");
-    int outputBlockSize = 30;
-    int inputBlockSize = 32;// WIP Hardcoded in kernel, 30 + 1 + 1
-    dim3 blocks(inputBlockSize, inputBlockSize, 1);
-    dim3 grid((m_imageWidth + outputBlockSize - 1) / outputBlockSize, (m_imageHeight + outputBlockSize - 1) / outputBlockSize, 1);
-
-    LOG_DEBUG(" 1-Sobel Cuda Kernel");
-    sobelXY<<<grid, blocks>>>(d_blurr, d_sobelX, d_sobelY, m_imageWidth, m_imageHeight, d_blurrPitch, d_sobelXPitch / sizeof(float), d_sobelYPitch / sizeof(float));
-
-    int blockSize = 32;
-    dim3 yblocks(blockSize, blockSize, 1);
-    dim3 ygrid((m_imageWidth + blockSize - 1) / blockSize, (m_imageHeight + blockSize - 1) / blockSize, 1);
-
-    LOG_DEBUG(" 2-Gradient Cuda Kernel");
-    gradSlope<<<ygrid, yblocks>>>(d_sobelX, d_sobelY, d_grad, d_slope, m_imageWidth, m_imageHeight, d_sobelXPitch / sizeof(float), d_sobelYPitch / sizeof(float), d_gradPitch / sizeof(float), d_slopePitch / sizeof(float));
-    //gradSlope<<<ygrid, yblocks>>>(d_sobelX, d_sobelY, d_grad, d_slope, m_imageWidth, m_imageHeight, d_sobelXPitch / sizeof(float), d_sobelYPitch / sizeof(float), d_gradPitch, d_slopePitch / sizeof(float));
-
-    LOG_DEBUG("End Gradient Cuda Kernel");
-  }
-
-  template<class T, size_t nbChannels>
-  void CannyEdge<T, nbChannels>::runGradientOut(unsigned int iblockSize)
-  {
-    if (!CannyEdge::readyToRun(iblockSize))
-      return;
-
-    LOG_DEBUG("Start Gradient Cuda Kernel");
-    int outputBlockSize = 30;
-    int inputBlockSize = 32;// WIP Hardcoded in kernel, 30 + 1 + 1
-    dim3 blocks(inputBlockSize, inputBlockSize, 1);
-    dim3 grid((m_imageWidth + outputBlockSize - 1) / outputBlockSize, (m_imageHeight + outputBlockSize - 1) / outputBlockSize, 1);
-
-    LOG_DEBUG(" 1-Sobel Cuda Kernel");
-    sobelXY<<<grid, blocks>>>(d_blurr, d_sobelX, d_sobelY, m_imageWidth, m_imageHeight, d_blurrPitch, d_sobelXPitch / sizeof(float), d_sobelYPitch / sizeof(float));
+    LOG_DEBUG("Start Non Max Suppression");
 
     size_t dumbSize;
     unsigned char *outPbo;
     checkCudaErrors(cudaGraphicsMapResources(1, &d_pbo, 0));
     checkCudaErrors(cudaGraphicsResourceGetMappedPointer((void **)&outPbo, &dumbSize, d_pbo));
 
-    int blockSize = 32;
-    dim3 yblocks(blockSize, blockSize, 1);
-    dim3 ygrid((m_imageWidth + blockSize - 1) / blockSize, (m_imageHeight + blockSize - 1) / blockSize, 1);
-
-    LOG_DEBUG(" 2-Gradient Cuda Kernel");//         d_grad                                                                      d_gradPitch
-    //  gradSlope<<<ygrid, yblocks>>>(d_sobelX, d_sobelY, outPbo, d_slope, m_imageWidth, m_imageHeight, d_sobelXPitch / sizeof(float), d_sobelYPitch / sizeof(float), m_imageWidth, d_slopePitch / sizeof(float));
-
-    checkCudaErrors(cudaGraphicsUnmapResources(1, &d_pbo, 0));
-
-    LOG_DEBUG("End Gradient Cuda Kernel");
-  }
-
-  template<class T, size_t nbChannels>
-  void CannyEdge<T, nbChannels>::runNonMaxSuppr(unsigned int blockSize)
-  {
-    if (!CannyEdge::readyToRun(32))
-      return;
-
-    LOG_DEBUG("Start NMS Cuda Kernel");
-
-    unsigned char *outPbo;
-    size_t dumbSize;
-    checkCudaErrors(cudaGraphicsMapResources(1, &d_pbo, 0));
-    checkCudaErrors(cudaGraphicsResourceGetMappedPointer((void **)&outPbo, &dumbSize, d_pbo));
-
-    int outputBlockSize = 30;
-    int inputBlockSize = 32;// WIP Hardcoded in kernel, 30 + 1 + 1
-    dim3 blocks(inputBlockSize, inputBlockSize, 1);
+    int outputBlockSize = m_inputBlockSize - 2;
+    dim3 blocks(m_inputBlockSize, m_inputBlockSize, 1);
     dim3 grid((m_imageWidth + outputBlockSize - 1) / outputBlockSize, (m_imageHeight + outputBlockSize - 1) / outputBlockSize, 1);
     nonMaxSuppr<<<grid, blocks>>>(d_grad, d_slope, outPbo, m_imageWidth, m_imageHeight, d_gradPitch / sizeof(float), d_slopePitch / sizeof(float), m_imageWidth);
-    //nonMaxSuppr<<<grid, blocks>>>(d_grad, d_slope, outPbo, m_imageWidth, m_imageHeight, d_gradPitch, d_slopePitch / sizeof(float), m_imageWidth);
 
     checkCudaErrors(cudaGraphicsUnmapResources(1, &d_pbo, 0));
 
-    LOG_DEBUG("End NMS Cuda Kernel");
+    LOG_DEBUG("End Non Max Suppression");
   }
 
   template<class T, size_t nbChannels>
-  void CannyEdge<T, nbChannels>::runDoubleThresh(unsigned int blockSize){};
+  void CannyEdge<T, nbChannels>::runDoubleThresh(){};
   template<class T, size_t nbChannels>
-  void CannyEdge<T, nbChannels>::runEdgeTracking(unsigned int blockSize){};
+  void CannyEdge<T, nbChannels>::runEdgeTracking(){};
 
   template<class T, size_t nbChannels>
-  void CannyEdge<T, nbChannels>::initAlloc()
+  void CannyEdge<T, nbChannels>::_initAlloc()
   {
     LOG_DEBUG("Start allocating image memory in GPU");
 
     checkCudaErrors(cudaMallocPitch(&d_RGB, &d_inPitch, m_imageWidth * m_nbChannels, m_imageHeight));
+
     checkCudaErrors(cudaMallocPitch(&d_mono, &d_monoPitch, m_imageWidth, m_imageHeight));
+
     checkCudaErrors(cudaMallocPitch(&d_blurr, &d_blurrPitch, m_imageWidth, m_imageHeight));
+
     checkCudaErrors(cudaMallocPitch(&d_sobelX, &d_sobelXPitch, m_imageWidth * sizeof(float), m_imageHeight));
-    //checkCudaErrors(cudaMallocPitch(&d_sobelX, &d_sobelXPitch, m_imageWidth , m_imageHeight));
     checkCudaErrors(cudaMallocPitch(&d_sobelY, &d_sobelYPitch, m_imageWidth * sizeof(float), m_imageHeight));
-    //checkCudaErrors(cudaMallocPitch(&d_sobelY, &d_sobelYPitch, m_imageWidth , m_imageHeight));
-    // checkCudaErrors(cudaMallocPitch(&d_grad, &d_gradPitch, m_imageWidth, m_imageHeight));
+
     checkCudaErrors(cudaMallocPitch(&d_grad, &d_gradPitch, m_imageWidth * sizeof(float), m_imageHeight));
     checkCudaErrors(cudaMallocPitch(&d_slope, &d_slopePitch, m_imageWidth * sizeof(float), m_imageHeight));
+
     checkCudaErrors(cudaMallocPitch(&d_nms, &d_nmsPitch, m_imageWidth, m_imageHeight));
 
     std::array<std::array<float, 5>, 5> GK_CPU = { { { 2, 4, 5, 4, 2 }, { 4, 9, 12, 9, 4 }, { 5, 12, 15, 12, 5 }, { 4, 9, 12, 9, 4 }, { 2, 4, 5, 4, 2 } } };
@@ -589,7 +520,7 @@ namespace cuda
   }
 
   template<class T, size_t nbChannels>
-  void CannyEdge<T, nbChannels>::endAlloc()
+  void CannyEdge<T, nbChannels>::_endAlloc()
   {
     LOG_DEBUG("Start deallocating image memory in GPU");
 
@@ -605,24 +536,6 @@ namespace cuda
     LOG_DEBUG("End deallocating image memory in GPU");
 
     m_isAlloc = false;
-  }
-
-  template<class T, size_t nbChannels>
-  bool CannyEdge<T, nbChannels>::readyToRun(unsigned int blockSize)
-  {
-    if (!m_isAlloc)
-    {
-      LOG_ERROR("Cannot process if no memory is allocated on GPU");
-      return false;
-    }
-
-    if (blockSize > m_imageWidth || blockSize > m_imageHeight)
-    {
-      LOG_ERROR("BlockSize cannot be bigger than imageSize");
-      return false;
-    }
-
-    return true;
   }
 }// namespace cuda
 }// namespace cvp

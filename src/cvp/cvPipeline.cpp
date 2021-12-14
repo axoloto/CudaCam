@@ -39,16 +39,9 @@ bool cvPipeline::process(cv::Mat inputImage)
     return false;
   }
 
-  m_cudaCannyEdge->loadInputImage(inputImage.ptr(), inputImage.step);
+  m_cudaCannyEdge->run(inputImage);
 
-  m_cudaCannyEdge->runGrayConversion(32);// UI informed with blocked option
-
-  // if (m_isGaussianFilterEnabled)
-  m_cudaCannyEdge->runGaussianFilter();
-
-  m_cudaCannyEdge->runGradient(30);
-  m_cudaCannyEdge->runNonMaxSuppr(30);
-  cv::Mat mat;
+  //cv::Mat mat;
   //mat.create(inputImage.size(), CV_8UC1);
   //m_cudaCannyEdge->unloadImage(mat.ptr());
 
