@@ -46,7 +46,8 @@ bool cvPipeline::process(cv::Mat inputImage)
   // if (m_isGaussianFilterEnabled)
   m_cudaCannyEdge->runGaussianFilter();
 
-  m_cudaCannyEdge->runGradientOut(30);
+  m_cudaCannyEdge->runGradient(30);
+  m_cudaCannyEdge->runNonMaxSuppr(30);
   cv::Mat mat;
   //mat.create(inputImage.size(), CV_8UC1);
   //m_cudaCannyEdge->unloadImage(mat.ptr());

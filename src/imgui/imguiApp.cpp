@@ -221,6 +221,16 @@ void ImguiApp::displayMainWidget()
 
   if (m_cvPipeline)
   {
+    bool isRunning = m_webcam->isRunning();
+    std::string pause = isRunning ? "  Pause  " : "  Start  ";
+    if (ImGui::Button(pause.c_str()))
+    {
+      if (isRunning)
+        m_webcam->stop();
+      else
+        m_webcam->start();
+    }
+
     ImGui::Checkbox("Cuda Processing", &m_isCvPipelineEnabled);
     /*
     if (m_isCvPipelineEnabled)
@@ -278,6 +288,33 @@ void ImguiApp::displayLiveStream()
     ImGui::Begin("Live Stream");
     ImGui::Text("%d x %d CUDA", m_pboCols, m_pboRows);
     ImGui::Image((void *)(intptr_t)m_texture, ImVec2(m_pboCols, m_pboRows));
+
+    ImVec2 pos = ImGui::GetCursorScreenPos();
+    if (0 && ImGui::IsItemHovered())
+    {
+      auto &io = ImGui::GetIO();
+      ImGui::BeginTooltip();
+      float region_sz = 128.0f;
+      float region_x = io.MousePos.x - pos.x - region_sz * 0.5f;
+      float region_y = io.MousePos.y - pos.y - region_sz * 0.5f;
+      float zoom = 4.0f;
+      if (region_x < 0.0f) { region_x = 0.0f; }
+      else if (region_x > m_pboCols - region_sz)
+      {
+        region_x = m_pboCols - region_sz;
+      }
+      if (region_y < 0.0f) { region_y = 0.0f; }
+      else if (region_y > m_pboRows - region_sz)
+      {
+        region_y = m_pboRows - region_sz;
+      }
+      ImGui::Text("Min: (%.2f, %.2f)", region_x, region_y);
+      ImGui::Text("Max: (%.2f, %.2f)", region_x + region_sz, region_y + region_sz);
+      ImVec2 uv0 = ImVec2((region_x) / m_pboCols, (region_y) / m_pboRows);
+      ImVec2 uv1 = ImVec2((region_x + region_sz) / m_pboCols, (region_y + region_sz) / m_pboRows);
+      ImGui::Image((void *)(intptr_t)m_texture, ImVec2(region_sz * zoom, region_sz * zoom), uv0, uv1);
+      ImGui::EndTooltip();
+    }
     ImGui::End();
   }
 }
@@ -312,9 +349,12 @@ void ImguiApp::run()
 
     displayMainWidget();
 
-    m_webcam->read();
+    if (m_webcam->isRunning())
+    {
+      m_webcam->read();
 
-    m_cvPipeline->process(m_webcam->frame());
+      m_cvPipeline->process(m_webcam->frame());
+    }
 
     displayLiveStream();
 
