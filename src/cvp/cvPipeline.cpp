@@ -15,14 +15,9 @@ cvPipeline::~cvPipeline()
 {
 }
 
-bool cvPipeline::isCudaProcReady()
-{
-  return (m_cudaCannyEdge.get() != nullptr);
-}
-
 bool cvPipeline::process(cv::Mat inputImage, CannyStage finalStage)
 {
-  if (!isCudaProcReady())
+  if (!m_cudaCannyEdge.get())
   {
     LOG_ERROR("Cannot process the webcam stream, Cuda is not ready.");
     return false;
@@ -39,9 +34,9 @@ bool cvPipeline::process(cv::Mat inputImage, CannyStage finalStage)
     return false;
   }
 
-  m_cudaCannyEdge->run(inputImage);
+  m_cudaCannyEdge->run(inputImage, finalStage);
 
-  cv::Mat mat;
+  //cv::Mat mat;
   //mat.create(inputImage.size(), CV_8UC1);
   //m_cudaCannyEdge->unloadImage(mat.ptr());
 

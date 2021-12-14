@@ -28,7 +28,7 @@ namespace cuda
 
     void unloadImage(T *ptrCPU);// Not needed anymore, using interop opengl cuda
 
-    void run(cv::Mat input);
+    void run(cv::Mat input, cvp::CannyStage finalStage);
 
   private:
     void _initAlloc();
@@ -393,7 +393,7 @@ namespace cuda
   }
 
   template<class T, size_t nbChannels>
-  void CannyEdge<T, nbChannels>::run(cv::Mat input)// Need to add checks
+  void CannyEdge<T, nbChannels>::run(cv::Mat input, cvp::CannyStage finalStage)// Need to add checks
   {
     if (!m_isAlloc)
     {
@@ -402,12 +402,63 @@ namespace cuda
 
     LOG_DEBUG("Start Canny Edge Filter on CUDA device");
 
-    _loadInputImage(input.ptr(), input.step);
-    _runGrayConversion();
-    _runGaussianFilter();
-    _runGradient();
-    _runNonMaxSuppr();
-    _runDoubleThresh();
+    switch (finalStage)
+    {
+    case cvp::CannyStage::MONO:
+    {
+      _loadInputImage(input.ptr(), input.step);
+      _runGrayConversion();
+      break;
+    }
+    case cvp::CannyStage::GAUSSIAN:
+    {
+      _loadInputImage(input.ptr(), input.step);
+      _runGrayConversion();
+      _runGaussianFilter();
+      break;
+    }
+    case cvp::CannyStage::GRADIENT:
+    {
+      _loadInputImage(input.ptr(), input.step);
+      _runGrayConversion();
+      _runGaussianFilter();
+      _runGradient();
+      break;
+    }
+    case cvp::CannyStage::NMS:
+    {
+      _loadInputImage(input.ptr(), input.step);
+      _runGrayConversion();
+      _runGaussianFilter();
+      _runGradient();
+      _runNonMaxSuppr();
+      break;
+    }
+    case cvp::CannyStage::THRESH:
+    {
+      _loadInputImage(input.ptr(), input.step);
+      _runGrayConversion();
+      _runGaussianFilter();
+      _runGradient();
+      _runNonMaxSuppr();
+      _runDoubleThresh();
+      break;
+    }
+    case cvp::CannyStage::HYSTER:
+    {
+      _loadInputImage(input.ptr(), input.step);
+      _runGrayConversion();
+      _runGaussianFilter();
+      _runGradient();
+      _runNonMaxSuppr();
+      _runDoubleThresh();
+      break;
+    }
+    default:
+    {
+      LOG_ERROR("Canny Stage Not Recognized");
+    }
+    }
 
     LOG_DEBUG("End Canny Edge Filter on CUDA device");
   }

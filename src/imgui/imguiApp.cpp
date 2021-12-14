@@ -252,7 +252,7 @@ void ImguiApp::displayMainWidget()
           {
             m_cvFinalStage = stage;
 
-            LOG_INFO("Application correctly switched to {}", m_cvFinalStage.first);
+            LOG_INFO("Application correctly switched to {}", m_cvFinalStage.second);
           }
         }
         ImGui::EndCombo();

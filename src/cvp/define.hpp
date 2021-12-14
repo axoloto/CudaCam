@@ -9,7 +9,7 @@ namespace cvp
 enum CannyStage
 {
   MONO = 0,
-  NOISE = 1,
+  GAUSSIAN = 1,
   GRADIENT = 2,
   NMS = 3,
   THRESH = 4,
@@ -26,7 +26,7 @@ struct CompareCannyStage
 
 static const std::map<CannyStage, std::string, CompareCannyStage> CANNY_STAGES{
   { CannyStage::MONO, "Mono Conversion" },
-  { CannyStage::NOISE, "Gaussian Noise Removal" },
+  { CannyStage::GAUSSIAN, "Gaussian Noise Removal" },
   { CannyStage::GRADIENT, "Gradient Computation" },
   { CannyStage::NMS, "Non Maximum Suppression" },
   { CannyStage::THRESH, "Double Threshold" },

@@ -7,7 +7,7 @@
 
 #include <memory>
 
-// Compiled with NVCC but not including any cuda calls to be used by Cpp Compilers further on
+// Proxy compiled with NVCC but not including any cuda calls to be used by Cpp Compilers further on
 
 namespace cvp
 {
@@ -26,18 +26,9 @@ public:
   cvPipeline(const unsigned int pbo, const unsigned int inputImageCols, const unsigned int inputImageRows);
   ~cvPipeline();
 
-  bool start();
-  bool stop();
   bool process(cv::Mat inputImage, CannyStage finalStage);
 
-  bool isGaussianFilterEnabled() const { return m_isGaussianFilterEnabled; }
-  void enableGaussianFilter(bool enable) { m_isGaussianFilterEnabled = enable; }
-
 private:
-  bool isCudaProcReady();
-
-  bool m_isGaussianFilterEnabled;
-
   std::unique_ptr<cuda::CannyEdgeRGB8U> m_cudaCannyEdge;
 };
 }// namespace cvp
