@@ -59,6 +59,7 @@ private:
   size_t m_pboCols, m_pboRows;
   GLuint m_pbo;
   GLuint m_texture;
+  size_t m_zoom;
 
   // IO
   // Take last frame from the stream

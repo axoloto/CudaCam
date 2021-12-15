@@ -136,8 +136,26 @@ bool ImguiApp::checkSDLStatus()
       }
       break;
     }
+    case SDL_MOUSEWHEEL:
+    {
+      if (event.wheel.y > 0 && m_zoom < 6)
+      {
+        ++m_zoom;
+      }
+      else if (event.wheel.y < 0 && m_zoom > 2)
+      {
+        --m_zoom;
+      }
+      break;
+    }
+    case SDL_KEYDOWN:
+    {
+      m_takeLastFrame = !m_takeLastFrame;
+      break;
+    }
     }
   }
+
   return keepGoing;
 }
 
@@ -152,6 +170,7 @@ ImguiApp::ImguiApp()
     m_texture(0),
     m_pboCols(0),
     m_pboRows(0),
+    m_zoom(2),
     m_isZoomEnabled(true),
     m_isCvPipelineEnabled(true),
     m_cvFinalStage(std::make_pair(cvp::CANNY_STAGES.rbegin()->first, cvp::CANNY_STAGES.rbegin()->second)),
@@ -326,7 +345,6 @@ void ImguiApp::displayLiveStream()
 
     if (m_isZoomEnabled && ImGui::IsItemHovered())
     {
-      float zoom = 4.0f;
       float roiSize = 128.0f;
 
       float roiStartX = io.MousePos.x - pos.x - roiSize * 0.5f;
@@ -342,7 +360,7 @@ void ImguiApp::displayLiveStream()
       ImGui::Text("Max: (%.2f, %.2f)", roiStartX + roiSize, roiStartY + roiSize);
       ImVec2 uv0 = ImVec2((roiStartX) / m_pboCols, (roiStartY) / m_pboRows);
       ImVec2 uv1 = ImVec2((roiStartX + roiSize) / m_pboCols, (roiStartY + roiSize) / m_pboRows);
-      ImGui::Image((void *)(intptr_t)m_texture, ImVec2(roiSize * zoom, roiSize * zoom), uv0, uv1);
+      ImGui::Image((void *)(intptr_t)m_texture, ImVec2(roiSize * m_zoom, roiSize * m_zoom), uv0, uv1);
       ImGui::EndTooltip();
     }
     ImGui::End();
