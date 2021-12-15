@@ -258,7 +258,7 @@ void ImguiApp::displayMainWidget()
         ImGui::EndCombo();
       }
 
-      if (m_cvFinalStage.first >= cvp::CannyStage::NMS)
+      if (m_cvFinalStage.first >= cvp::CannyStage::THRESH)
       {
         int lowThresh = (int)m_cvPipeline->getLowThreshold();
         if (ImGui::SliderInt("Low Threshold", &lowThresh, 0, 255))
@@ -321,7 +321,7 @@ void ImguiApp::displayLiveStream()
     ImGui::Image((void *)(intptr_t)m_texture, ImVec2(m_pboCols, m_pboRows));
 
     ImVec2 pos = ImGui::GetCursorScreenPos();
-    if (m_isZoomEnabled && ImGui::IsItemHovered())
+    if (m_isZoomEnabled && ImGui::IsItemHovered())// WIP
     {
       auto &io = ImGui::GetIO();
       ImGui::BeginTooltip();

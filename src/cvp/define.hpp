@@ -30,5 +30,6 @@ static const std::map<CannyStage, std::string, CompareCannyStage> CANNY_STAGES{
   { CannyStage::GRADIENT, "Gradient Computation" },
   { CannyStage::NMS, "Non Maximum Suppression" },
   { CannyStage::THRESH, "Double Threshold" },
+  { CannyStage::HYSTER, "Hysteresis" }
 };
 }// namespace cvp

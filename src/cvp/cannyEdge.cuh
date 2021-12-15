@@ -52,7 +52,7 @@ namespace cuda
     // Step 4 - Double threshold
     void _runDoubleThresh();
     // Step 5 - Edge Tracking by hysteresis
-    void runEdgeTracking();
+    void _runHysteresis();
 
     void _sendOutputToOpenGL(cvp::CannyStage finalStage);
 
@@ -93,6 +93,10 @@ namespace cuda
     int d_threshPitch;
     unsigned char m_lowThresh;
     unsigned char m_highThresh;
+
+    unsigned char *d_hyster;
+    int d_hysterPitch;
+    int *d_isImageModified;
 
     struct cudaGraphicsResource *d_pbo;
 
@@ -368,6 +372,10 @@ namespace cuda
     }
   }
 
+  constexpr unsigned char FINAL_EDGE = 255;
+  constexpr unsigned char CANDIDATE_EDGE = 128;
+  constexpr unsigned char NO_EDGE = 0;
+
   // Double Threshold, finding Final Edges and Candidate Edges
   __global__ void doubleThreshold(
     const unsigned char *const __restrict__ nms,
@@ -386,11 +394,92 @@ namespace cuda
     {
       const unsigned char nmsVal = nms[row * nmsPitch + col];
 
-      thresh[row * threshPitch + col] = nmsVal > highThreshold ? 255 : nmsVal > lowThreshold ? 128
-                                                                                             : 0;
+      thresh[row * threshPitch + col] = nmsVal > highThreshold ? FINAL_EDGE : nmsVal > lowThreshold ? CANDIDATE_EDGE
+                                                                                                    : NO_EDGE;
     }
   }
 
+  constexpr int H_O_TILE_WIDTH = 30;// Must be -2 blockSize
+
+  __global__ void hysteresis(
+    const unsigned char *const __restrict__ thresh,
+    unsigned char *const __restrict__ hyster,
+    int *const __restrict__ isImageModified,
+    const int width,
+    const int height,
+    const int threshPitch,
+    const int hysterPitch)
+  {
+    int tx = threadIdx.x;
+    int ty = threadIdx.y;
+
+    int col_o = H_O_TILE_WIDTH * blockIdx.x + tx;
+    int row_o = H_O_TILE_WIDTH * blockIdx.y + ty;
+
+    int row_i = row_o - 1;
+    int col_i = col_o - 1;
+
+    int hasBlockBeenModifiedOnce = 0;
+
+    __shared__ int isBlockModified[1];
+    __shared__ float thresh_s[H_O_TILE_WIDTH + 2][H_O_TILE_WIDTH + 2];// 1 halo cells on each side of the tile
+
+    if (tx == 0)
+      isBlockModified[0] = 1;
+
+    if ((row_i >= 0) && (row_i < height) && (col_i >= 0) && (col_i < width))
+    {
+      thresh_s[ty][tx] = thresh[row_i * threshPitch + col_i];
+    }
+    else
+    {
+      thresh_s[ty][tx] = 0;
+    }
+
+    __syncthreads();
+
+    while (isBlockModified[0])
+    {
+      if (tx == 0)
+        isBlockModified[0] = 0;
+
+      __syncthreads();
+
+      if (thresh_s[ty + 1][tx + 1] == CANDIDATE_EDGE
+          && (thresh_s[ty + 2][tx + 2] == FINAL_EDGE
+              || thresh_s[ty + 2][tx + 1] == FINAL_EDGE
+              || thresh_s[ty + 2][tx] == FINAL_EDGE
+              || thresh_s[ty][tx + 2] == FINAL_EDGE
+              || thresh_s[ty][tx + 1] == FINAL_EDGE
+              || thresh_s[ty][tx] == FINAL_EDGE
+              || thresh_s[ty + 1][tx] == FINAL_EDGE
+              || thresh_s[ty + 1][tx + 2] == FINAL_EDGE))
+      {
+        thresh_s[ty + 1][tx + 1] = FINAL_EDGE;
+
+        if (!isBlockModified[0])
+          isBlockModified[0] = 1;
+      }
+
+      __syncthreads();
+
+      if (isBlockModified[0] && tx == 0)
+        hasBlockBeenModifiedOnce = 1;
+    }
+
+    __syncthreads();
+
+    if (ty < N_O_TILE_WIDTH && tx < N_O_TILE_WIDTH)
+    {
+      if (col_o < width && row_o < height)
+      {
+        hyster[row_o * hysterPitch + col_o] = thresh_s[ty + 1][tx + 1];
+      }
+    }
+
+    if (hasBlockBeenModifiedOnce && tx == 0)
+      atomicAdd(&isImageModified[0], 1);
+  }
 #endif
 
   template<class T, size_t nbChannels>
@@ -475,6 +564,7 @@ namespace cuda
       _runGradient();
       _runNonMaxSuppr();
       _runDoubleThresh();
+      _runHysteresis();
       break;
     }
     default:
@@ -545,7 +635,7 @@ namespace cuda
     }
     case cvp::CannyStage::HYSTER:
     {
-      //checkCudaErrors(cudaMemcpy2D(outPbo, m_imageWidth, d_thresh, d_threshPitch, m_imageWidth, m_imageHeight, cudaMemcpyDeviceToDevice));
+      checkCudaErrors(cudaMemcpy2D(outPbo, m_imageWidth, d_hyster, d_hysterPitch, m_imageWidth, m_imageHeight, cudaMemcpyDeviceToDevice));
       break;
     }
     default:
@@ -644,7 +734,28 @@ namespace cuda
   }
 
   template<class T, size_t nbChannels>
-  void CannyEdge<T, nbChannels>::runEdgeTracking(){};
+  void CannyEdge<T, nbChannels>::_runHysteresis()
+  {
+    LOG_DEBUG("Start Hysteresis");
+
+    int outputBlockSize = m_inputBlockSize - 2;
+    dim3 blocks(m_inputBlockSize, m_inputBlockSize, 1);
+    dim3 grid((m_imageWidth + outputBlockSize - 1) / outputBlockSize, (m_imageHeight + outputBlockSize - 1) / outputBlockSize, 1);
+
+    int iter = 0;
+    int isImageModified = 1;
+    while (iter < 100 && isImageModified)
+    {
+      isImageModified = 0;
+      cudaMemcpy(d_isImageModified, &isImageModified, sizeof(int), cudaMemcpyHostToDevice);
+      hysteresis<<<grid, blocks>>>(d_thresh, d_hyster, d_isImageModified, m_imageWidth, m_imageHeight, d_threshPitch, d_hysterPitch);
+      cudaMemcpy(&isImageModified, d_isImageModified, sizeof(int), cudaMemcpyDeviceToHost);
+      iter++;
+    }
+    LOG_INFO("Number of hysteresis iterations {}", isImageModified);
+
+    LOG_DEBUG("End Hysteresis");
+  }
 
   template<class T, size_t nbChannels>
   void CannyEdge<T, nbChannels>::_initAlloc()
@@ -671,6 +782,10 @@ namespace cuda
     d_nmsPitch = (int)pitch;
     checkCudaErrors(cudaMallocPitch(&d_thresh, &pitch, m_imageWidth, m_imageHeight));
     d_threshPitch = (int)pitch;
+    checkCudaErrors(cudaMallocPitch(&d_hyster, &pitch, m_imageWidth, m_imageHeight));
+    d_hysterPitch = (int)pitch;
+
+    checkCudaErrors(cudaMalloc(&d_isImageModified, sizeof(int)));
 
     std::array<std::array<float, 5>, 5> GK_CPU = { { { 2, 4, 5, 4, 2 }, { 4, 9, 12, 9, 4 }, { 5, 12, 15, 12, 5 }, { 4, 9, 12, 9, 4 }, { 2, 4, 5, 4, 2 } } };
     for (int i = 0; i < 5; ++i)
@@ -701,6 +816,8 @@ namespace cuda
     checkCudaErrors(cudaFree(d_slope));
     checkCudaErrors(cudaFree(d_nms));
     checkCudaErrors(cudaFree(d_thresh));
+    checkCudaErrors(cudaFree(d_hyster));
+    checkCudaErrors(cudaFree(d_isImageModified));
 
     LOG_DEBUG("End deallocating image memory in GPU");
 
