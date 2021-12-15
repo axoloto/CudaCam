@@ -37,7 +37,7 @@ bool cvPipeline::process(cv::Mat inputImage, CannyStage finalStage)
 
   m_cudaCannyEdge->run(inputImage, finalStage);
 
-  //cv::Mat mat;
+  cv::Mat mat;
   //mat.create(inputImage.size(), CV_8UC1);
   //m_cudaCannyEdge->unloadImage(mat.ptr());
 
