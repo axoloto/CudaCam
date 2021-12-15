@@ -145,16 +145,16 @@ ImguiApp::ImguiApp()
   : m_nameApp("CudaCam " + Utils::GetVersions()),
     m_backGroundColor({ 0.0f, 0.0f, 0.0f, 1.00f }),
     m_windowSize({ 1920, 1000 }),//1080
+    m_now(std::chrono::steady_clock::now()),
+    m_totalTimeMs(0),
+    m_totalFrames(0),
     m_targetFps(60),
     m_texture(0),
     m_pboCols(0),
     m_pboRows(0),
-    m_totalTimeMs(0),
-    m_totalFrames(0),
-    m_isCvPipelineEnabled(true),
     m_isZoomEnabled(true),
-    m_cvFinalStage(std::make_pair(cvp::CANNY_STAGES.rbegin()->first, cvp::CANNY_STAGES.rend()->second)),
-    m_now(std::chrono::steady_clock::now()),
+    m_isCvPipelineEnabled(true),
+    m_cvFinalStage(std::make_pair(cvp::CANNY_STAGES.rbegin()->first, cvp::CANNY_STAGES.rbegin()->second)),
     m_init(false)
 {
   if (!initWindow())
@@ -222,19 +222,19 @@ void ImguiApp::displayMainWidget()
   ImGui::Spacing();
 
   ImGui::Checkbox("Zoom", &m_isZoomEnabled);
+  ImGui::SameLine();
+  std::string pause = m_takeLastFrame ? "  Pause  " : "  Start  ";
+  if (ImGui::Button(pause.c_str()))
+  {
+    m_takeLastFrame = !m_takeLastFrame;
+  }
+
+  ImGui::Spacing();
+  ImGui::Separator();
+  ImGui::Spacing();
 
   if (m_cvPipeline)
   {
-    bool isRunning = m_webcam->isRunning();
-    std::string pause = isRunning ? "  Pause  " : "  Start  ";
-    if (ImGui::Button(pause.c_str()))
-    {
-      if (isRunning)
-        m_webcam->stop();
-      else
-        m_webcam->start();
-    }
-
     ImGui::Checkbox("Cuda Processing", &m_isCvPipelineEnabled);
 
     if (m_isCvPipelineEnabled)
@@ -286,12 +286,13 @@ void ImguiApp::displayLiveStream()
 
     if (!image.empty() && image.type() == CV_8UC3)
     {
-      //cv::flip(image, image, 1);
-      cv::cvtColor(image, image, cv::COLOR_RGB2BGR);
-
-      glBindTexture(GL_TEXTURE_2D, m_texture);
-      glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, image.cols, image.rows, 0, GL_RGB, GL_UNSIGNED_BYTE, image.ptr());
-      glBindTexture(GL_TEXTURE_2D, 0);
+      if (m_takeLastFrame)
+      {
+        cv::cvtColor(image, image, cv::COLOR_RGB2BGR);
+        glBindTexture(GL_TEXTURE_2D, m_texture);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, image.cols, image.rows, 0, GL_RGB, GL_UNSIGNED_BYTE, image.ptr());
+        glBindTexture(GL_TEXTURE_2D, 0);
+      }
 
       ImGui::SetNextWindowPos(ImVec2(150, 120), ImGuiCond_FirstUseEver);
       ImGui::SetNextWindowSize(ImVec2(image.cols, image.rows), ImGuiCond_FirstUseEver);
@@ -316,34 +317,32 @@ void ImguiApp::displayLiveStream()
 
     ImGui::SetNextWindowPos(ImVec2(150, 120), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(ImVec2(m_pboCols, m_pboRows), ImGuiCond_FirstUseEver);
+
     ImGui::Begin("Live Stream");
+    const auto &io = ImGui::GetIO();
+    ImVec2 pos = ImGui::GetCursorScreenPos();
     ImGui::Text("%d x %d CUDA", m_pboCols, m_pboRows);
     ImGui::Image((void *)(intptr_t)m_texture, ImVec2(m_pboCols, m_pboRows));
 
-    ImVec2 pos = ImGui::GetCursorScreenPos();
-    if (m_isZoomEnabled && ImGui::IsItemHovered())// WIP
+    if (m_isZoomEnabled && ImGui::IsItemHovered())
     {
-      auto &io = ImGui::GetIO();
-      ImGui::BeginTooltip();
-      float region_sz = 128.0f;
-      float region_x = io.MousePos.x - pos.x - region_sz * 0.5f;
-      float region_y = io.MousePos.y - pos.y - region_sz * 0.5f;
       float zoom = 4.0f;
-      if (region_x < 0.0f) { region_x = 0.0f; }
-      else if (region_x > m_pboCols - region_sz)
-      {
-        region_x = m_pboCols - region_sz;
-      }
-      if (region_y < 0.0f) { region_y = 0.0f; }
-      else if (region_y > m_pboRows - region_sz)
-      {
-        region_y = m_pboRows - region_sz;
-      }
-      ImGui::Text("Min: (%.2f, %.2f)", region_x, region_y);
-      ImGui::Text("Max: (%.2f, %.2f)", region_x + region_sz, region_y + region_sz);
-      ImVec2 uv0 = ImVec2((region_x) / m_pboCols, (region_y) / m_pboRows);
-      ImVec2 uv1 = ImVec2((region_x + region_sz) / m_pboCols, (region_y + region_sz) / m_pboRows);
-      ImGui::Image((void *)(intptr_t)m_texture, ImVec2(region_sz * zoom, region_sz * zoom), uv0, uv1);
+      float roiSize = 128.0f;
+
+      float roiStartX = io.MousePos.x - pos.x - roiSize * 0.5f;
+      roiStartX = std::max(roiStartX, 0.0f);
+      roiStartX = std::min(roiStartX, m_pboCols - roiSize);
+
+      float roiStartY = io.MousePos.y - pos.y - roiSize * 0.5f;
+      roiStartY = std::max(roiStartY, 0.0f);
+      roiStartY = std::min(roiStartY, m_pboRows - roiSize);
+
+      ImGui::BeginTooltip();
+      ImGui::Text("Min: (%.2f, %.2f)", roiStartX, roiStartY);
+      ImGui::Text("Max: (%.2f, %.2f)", roiStartX + roiSize, roiStartY + roiSize);
+      ImVec2 uv0 = ImVec2((roiStartX) / m_pboCols, (roiStartY) / m_pboRows);
+      ImVec2 uv1 = ImVec2((roiStartX + roiSize) / m_pboCols, (roiStartY + roiSize) / m_pboRows);
+      ImGui::Image((void *)(intptr_t)m_texture, ImVec2(roiSize * zoom, roiSize * zoom), uv0, uv1);
       ImGui::EndTooltip();
     }
     ImGui::End();
@@ -382,7 +381,8 @@ void ImguiApp::run()
 
     if (m_webcam->isRunning())
     {
-      m_webcam->read();
+      if (m_takeLastFrame)
+        m_webcam->read();
 
       m_cvPipeline->process(m_webcam->frame(), m_cvFinalStage.first);
     }
