@@ -28,6 +28,12 @@ public:
 
   bool process(cv::Mat inputImage, CannyStage finalStage);
 
+  void setLowThreshold(unsigned char low);
+  unsigned char getLowThreshold();
+
+  void setHighThreshold(unsigned char high);
+  unsigned char getHighThreshold();
+
 private:
   std::unique_ptr<cuda::CannyEdgeRGB8U> m_cudaCannyEdge;
 };

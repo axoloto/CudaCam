@@ -13,6 +13,7 @@ cvPipeline::cvPipeline(const unsigned int pbo, const unsigned int inputImageCols
 
 cvPipeline::~cvPipeline()
 {
+  m_cudaCannyEdge.release();
 }
 
 bool cvPipeline::process(cv::Mat inputImage, CannyStage finalStage)
@@ -41,4 +42,44 @@ bool cvPipeline::process(cv::Mat inputImage, CannyStage finalStage)
   //m_cudaCannyEdge->unloadImage(mat.ptr());
 
   return true;
+}
+
+void cvPipeline::setLowThreshold(unsigned char low)
+{
+  if (!m_cudaCannyEdge.get())
+  {
+    LOG_ERROR("Cannot modify low threshold, Cuda is not ready.");
+    return;
+  }
+  m_cudaCannyEdge->setLowThreshold(low);
+}
+
+unsigned char cvPipeline::getLowThreshold()
+{
+  if (!m_cudaCannyEdge.get())
+  {
+    LOG_ERROR("Cannot modify low threshold, Cuda is not ready.");
+    return 0;
+  }
+  return m_cudaCannyEdge->getLowThreshold();
+}
+
+void cvPipeline::setHighThreshold(unsigned char high)
+{
+  if (!m_cudaCannyEdge.get())
+  {
+    LOG_ERROR("Cannot modify high threshold, Cuda is not ready.");
+    return;
+  }
+  m_cudaCannyEdge->setHighThreshold(high);
+}
+
+unsigned char cvPipeline::getHighThreshold()
+{
+  if (!m_cudaCannyEdge.get())
+  {
+    LOG_ERROR("Cannot modify low threshold, Cuda is not ready.");
+    return 255;
+  }
+  return m_cudaCannyEdge->getHighThreshold();
 }

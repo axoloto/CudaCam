@@ -30,6 +30,12 @@ namespace cuda
 
     void run(cv::Mat input, cvp::CannyStage finalStage);
 
+    void setLowThreshold(unsigned char low) { m_lowThresh = low; }
+    unsigned char getLowThreshold() const { return m_lowThresh; }
+
+    void setHighThreshold(unsigned char high) { m_highThresh = high; }
+    unsigned char getHighThreshold() const { return m_highThresh; }
+
   private:
     void _initAlloc();
     void _endAlloc();
@@ -48,38 +54,45 @@ namespace cuda
     // Step 5 - Edge Tracking by hysteresis
     void runEdgeTracking();
 
-    unsigned int m_imageWidth;
-    unsigned int m_imageHeight;
-    unsigned int m_nbChannels;
+    void _sendOutputToOpenGL(cvp::CannyStage finalStage);
+
+    // Most of following int variables should be unsigned
+    // sticking to signed ones to facilitate nvcc optimizations
+
+    int m_imageWidth;
+    int m_imageHeight;
+    int m_nbChannels;
 
     int m_inputBlockSize;
 
     T *d_RGB;
-    size_t d_inPitch;
+    int d_inPitch;
 
     unsigned char *d_mono;
-    size_t d_monoPitch;
+    int d_monoPitch;
 
     unsigned char *d_blurr;
-    size_t d_blurrPitch;
+    int d_blurrPitch;
 
     float *d_sobelX;
-    size_t d_sobelXPitch;
+    int d_sobelXPitch;
 
     float *d_sobelY;
-    size_t d_sobelYPitch;
+    int d_sobelYPitch;
 
     float *d_grad;
-    size_t d_gradPitch;
+    int d_gradPitch;
 
     float *d_slope;
-    size_t d_slopePitch;
+    int d_slopePitch;
 
     unsigned char *d_nms;
-    size_t d_nmsPitch;
+    int d_nmsPitch;
 
     unsigned char *d_thresh;
-    size_t d_threshPitch;
+    int d_threshPitch;
+    unsigned char m_lowThresh;
+    unsigned char m_highThresh;
 
     struct cudaGraphicsResource *d_pbo;
 
@@ -93,20 +106,20 @@ namespace cuda
 
 #include <math_constants.h>
 
-  __global__ void TEST(
-    const unsigned char *const __restrict__ in,
+  __global__ void float2uchar(
+    const float *const __restrict__ in,
     unsigned char *const __restrict__ out,
-    const unsigned int width,
-    const unsigned int height,
-    const unsigned int pitchIn,
-    const unsigned int pitchOut)
+    const int width,
+    const int height,
+    const int pitchIn,
+    const int pitchOut)
   {
     int col = blockDim.x * blockIdx.x + threadIdx.x;
     int row = blockDim.y * blockIdx.y + threadIdx.y;
 
     if (col < width && row < height)
     {
-      out[row * pitchOut + col] = in[row * pitchIn + col];
+      out[row * pitchOut + col] = (unsigned char)min(abs(in[row * pitchIn + col]), 255.0f);
     }
   }
 
@@ -119,13 +132,13 @@ namespace cuda
   constexpr int R_WT = static_cast<int>(64.0f * R_WEIGHT + 0.5f);
 
   // Greyscale conversion
-  __global__ void RGB2Mono(
+  __global__ void rgb2mono(
     const unsigned char *const __restrict__ rgb,
     unsigned char *const __restrict__ mono,
-    const unsigned int width,
-    const unsigned int height,
-    const unsigned int pitchIn,
-    const unsigned int pitchOut)
+    const int width,
+    const int height,
+    const int pitchIn,
+    const int pitchOut)
   {
     const int col = blockDim.x * blockIdx.x + threadIdx.x;
     const int row = blockDim.y * blockIdx.y + threadIdx.y;
@@ -145,10 +158,10 @@ namespace cuda
   __global__ void gaussianFilter5x5(
     const unsigned char *const __restrict__ mono,
     unsigned char *const __restrict__ blurr,
-    const unsigned int width,
-    const unsigned int height,
-    const unsigned int monoPitch,
-    const unsigned int blurrPitch)
+    const int width,
+    const int height,
+    const int monoPitch,
+    const int blurrPitch)
   {
     const int tx = threadIdx.x;
     const int ty = threadIdx.y;
@@ -197,11 +210,11 @@ namespace cuda
     const unsigned char *const __restrict__ blurr,
     float *const __restrict__ sobelX,
     float *const __restrict__ sobelY,
-    const unsigned int width,
-    const unsigned int height,
-    const unsigned int blurrPitch,
-    const unsigned int sobelXPitch,
-    const unsigned int sobelYPitch)
+    const int width,
+    const int height,
+    const int blurrPitch,
+    const int sobelXPitch,
+    const int sobelYPitch)
   {
     int tx = threadIdx.x;
     int ty = threadIdx.y;
@@ -252,12 +265,12 @@ namespace cuda
     const float *const __restrict__ sobelY,
     float *const __restrict__ grad,
     float *const __restrict__ slope,
-    const unsigned int width,
-    const unsigned int height,
-    const unsigned int sobelXPitch,
-    const unsigned int sobelYPitch,
-    const unsigned int gradPitch,
-    const unsigned int slopePitch)
+    const int width,
+    const int height,
+    const int sobelXPitch,
+    const int sobelYPitch,
+    const int gradPitch,
+    const int slopePitch)
   {
     const int col = blockDim.x * blockIdx.x + threadIdx.x;
     const int row = blockDim.y * blockIdx.y + threadIdx.y;
@@ -279,11 +292,11 @@ namespace cuda
     const float *const __restrict__ grad,
     const float *const __restrict__ slope,
     unsigned char *const __restrict__ nms,
-    const unsigned int width,
-    const unsigned int height,
-    const unsigned int gradPitch,
-    const unsigned int slopePitch,
-    const unsigned int nmsPitch)
+    const int width,
+    const int height,
+    const int gradPitch,
+    const int slopePitch,
+    const int nmsPitch)
   {
     int tx = threadIdx.x;
     int ty = threadIdx.y;
@@ -359,10 +372,12 @@ namespace cuda
   __global__ void doubleThreshold(
     const unsigned char *const __restrict__ nms,
     unsigned char *const __restrict__ thresh,
-    const unsigned int width,
-    const unsigned int height,
-    const unsigned int nmsPitch,
-    const unsigned int threshPitch)
+    const int width,
+    const int height,
+    const int nmsPitch,
+    const int threshPitch,
+    const unsigned char lowThreshold,
+    const unsigned char highThreshold)
   {
     const int col = blockDim.x * blockIdx.x + threadIdx.x;
     const int row = blockDim.y * blockIdx.y + threadIdx.y;
@@ -371,8 +386,8 @@ namespace cuda
     {
       const unsigned char nmsVal = nms[row * nmsPitch + col];
 
-      thresh[row * threshPitch + col] = nmsVal > 80 ? 255 : nmsVal > 15 ? 25
-                                                                        : 0;
+      thresh[row * threshPitch + col] = nmsVal > highThreshold ? 255 : nmsVal > lowThreshold ? 128
+                                                                                             : 0;
     }
   }
 
@@ -380,7 +395,15 @@ namespace cuda
 
   template<class T, size_t nbChannels>
   CannyEdge<T, nbChannels>::CannyEdge(unsigned int pbo, unsigned int imageWidth, unsigned int imageHeight)
-    : m_isAlloc(false), m_nbChannels(nbChannels), m_imageWidth(imageWidth), m_imageHeight(imageHeight), m_inputBlockSize(32), d_inPitch(0), d_monoPitch(0)
+    : m_isAlloc(false),
+      m_nbChannels(nbChannels),
+      m_imageWidth(imageWidth),
+      m_imageHeight(imageHeight),
+      m_inputBlockSize(32),
+      d_inPitch(0),
+      d_monoPitch(0),
+      m_lowThresh(10),
+      m_highThresh(60)
   {
     checkCudaErrors(cudaGraphicsGLRegisterBuffer(&d_pbo, pbo, cudaGraphicsMapFlagsWriteDiscard));
     _initAlloc();
@@ -460,6 +483,8 @@ namespace cuda
     }
     }
 
+    _sendOutputToOpenGL(finalStage);
+
     LOG_DEBUG("End Canny Edge Filter on CUDA device");
   }
 
@@ -477,6 +502,61 @@ namespace cuda
     checkCudaErrors(cudaMemcpy2D(d_RGB, d_inPitch, hImage, hPitch, m_imageWidth * m_nbChannels, m_imageHeight, cudaMemcpyHostToDevice));
 
     LOG_DEBUG("End loading image in GPU");
+  }
+
+  template<class T, size_t nbChannels>
+  void CannyEdge<T, nbChannels>::_sendOutputToOpenGL(CannyStage finalStage)
+  {
+    LOG_DEBUG("Start sending output image to OpenGL");
+
+    size_t dumbSize;
+    unsigned char *outPbo;
+    checkCudaErrors(cudaGraphicsMapResources(1, &d_pbo, 0));
+    checkCudaErrors(cudaGraphicsResourceGetMappedPointer((void **)&outPbo, &dumbSize, d_pbo));
+
+    switch (finalStage)
+    {
+    case cvp::CannyStage::MONO:
+    {
+      checkCudaErrors(cudaMemcpy2D(outPbo, m_imageWidth, d_mono, d_monoPitch, m_imageWidth, m_imageHeight, cudaMemcpyDeviceToDevice));
+      break;
+    }
+    case cvp::CannyStage::GAUSSIAN:
+    {
+      checkCudaErrors(cudaMemcpy2D(outPbo, m_imageWidth, d_blurr, d_blurrPitch, m_imageWidth, m_imageHeight, cudaMemcpyDeviceToDevice));
+      break;
+    }
+    case cvp::CannyStage::GRADIENT:
+    {
+      dim3 blocks(m_inputBlockSize, m_inputBlockSize, 1);
+      dim3 grid((m_imageWidth + m_inputBlockSize - 1) / m_inputBlockSize, (m_imageHeight + m_inputBlockSize - 1) / m_inputBlockSize, 1);
+      float2uchar<<<grid, blocks>>>(d_grad, outPbo, m_imageWidth, m_imageHeight, d_gradPitch / sizeof(float), m_imageWidth);
+      break;
+    }
+    case cvp::CannyStage::NMS:
+    {
+      checkCudaErrors(cudaMemcpy2D(outPbo, m_imageWidth, d_nms, d_nmsPitch, m_imageWidth, m_imageHeight, cudaMemcpyDeviceToDevice));
+      break;
+    }
+    case cvp::CannyStage::THRESH:
+    {
+      checkCudaErrors(cudaMemcpy2D(outPbo, m_imageWidth, d_thresh, d_threshPitch, m_imageWidth, m_imageHeight, cudaMemcpyDeviceToDevice));
+      break;
+    }
+    case cvp::CannyStage::HYSTER:
+    {
+      //checkCudaErrors(cudaMemcpy2D(outPbo, m_imageWidth, d_thresh, d_threshPitch, m_imageWidth, m_imageHeight, cudaMemcpyDeviceToDevice));
+      break;
+    }
+    default:
+    {
+      LOG_ERROR("Canny Stage Not Recognized");
+    }
+    }
+
+    checkCudaErrors(cudaGraphicsUnmapResources(1, &d_pbo, 0));
+
+    LOG_DEBUG("End sending output image to OpenGL");
   }
 
   template<class T, size_t nbChannels>
@@ -502,7 +582,7 @@ namespace cuda
 
     dim3 blocks(m_inputBlockSize, m_inputBlockSize, 1);
     dim3 grid((m_imageWidth + m_inputBlockSize - 1) / m_inputBlockSize, (m_imageHeight + m_inputBlockSize - 1) / m_inputBlockSize, 1);
-    RGB2Mono<<<grid, blocks>>>(d_RGB, d_mono, m_imageWidth, m_imageHeight, d_inPitch, d_monoPitch);
+    rgb2mono<<<grid, blocks>>>(d_RGB, d_mono, m_imageWidth, m_imageHeight, d_inPitch, d_monoPitch);
 
     LOG_DEBUG("End Gray Conversion");
   }
@@ -538,27 +618,6 @@ namespace cuda
     LOG_DEBUG("End Gradient Computation");
   }
 
-  /*
-  template<class T, size_t nbChannels>
-  void CannyEdge<T, nbChannels>::_runNonMaxSuppr()
-  {
-    LOG_DEBUG("Start Non Max Suppression");
-
-    size_t dumbSize;
-    unsigned char *outPbo;
-    checkCudaErrors(cudaGraphicsMapResources(1, &d_pbo, 0));
-    checkCudaErrors(cudaGraphicsResourceGetMappedPointer((void **)&outPbo, &dumbSize, d_pbo));
-
-    int outputBlockSize = m_inputBlockSize - 2;
-    dim3 blocks(m_inputBlockSize, m_inputBlockSize, 1);
-    dim3 grid((m_imageWidth + outputBlockSize - 1) / outputBlockSize, (m_imageHeight + outputBlockSize - 1) / outputBlockSize, 1);
-    nonMaxSuppr<<<grid, blocks>>>(d_grad, d_slope, outPbo, m_imageWidth, m_imageHeight, d_gradPitch / sizeof(float), d_slopePitch / sizeof(float), m_imageWidth);
-
-    checkCudaErrors(cudaGraphicsUnmapResources(1, &d_pbo, 0));
-
-    LOG_DEBUG("End Non Max Suppression");
-  }*/
-
   template<class T, size_t nbChannels>
   void CannyEdge<T, nbChannels>::_runNonMaxSuppr()
   {
@@ -577,16 +636,9 @@ namespace cuda
   {
     LOG_DEBUG("Start Double Threshold");
 
-    size_t dumbSize;
-    unsigned char *outPbo;
-    checkCudaErrors(cudaGraphicsMapResources(1, &d_pbo, 0));
-    checkCudaErrors(cudaGraphicsResourceGetMappedPointer((void **)&outPbo, &dumbSize, d_pbo));
-
     dim3 blocks(m_inputBlockSize, m_inputBlockSize, 1);
     dim3 grid((m_imageWidth + m_inputBlockSize - 1) / m_inputBlockSize, (m_imageHeight + m_inputBlockSize - 1) / m_inputBlockSize, 1);
-    doubleThreshold<<<grid, blocks>>>(d_nms, outPbo, m_imageWidth, m_imageHeight, d_nmsPitch, m_imageWidth);
-
-    checkCudaErrors(cudaGraphicsUnmapResources(1, &d_pbo, 0));
+    doubleThreshold<<<grid, blocks>>>(d_nms, d_thresh, m_imageWidth, m_imageHeight, d_nmsPitch, d_threshPitch, m_lowThresh, m_highThresh);
 
     LOG_DEBUG("End Double Threshold");
   }
@@ -599,21 +651,26 @@ namespace cuda
   {
     LOG_DEBUG("Start allocating image memory in GPU");
 
-    checkCudaErrors(cudaMallocPitch(&d_RGB, &d_inPitch, m_imageWidth * m_nbChannels, m_imageHeight));
-
-    checkCudaErrors(cudaMallocPitch(&d_mono, &d_monoPitch, m_imageWidth, m_imageHeight));
-
-    checkCudaErrors(cudaMallocPitch(&d_blurr, &d_blurrPitch, m_imageWidth, m_imageHeight));
-
-    checkCudaErrors(cudaMallocPitch(&d_sobelX, &d_sobelXPitch, m_imageWidth * sizeof(float), m_imageHeight));
-    checkCudaErrors(cudaMallocPitch(&d_sobelY, &d_sobelYPitch, m_imageWidth * sizeof(float), m_imageHeight));
-
-    checkCudaErrors(cudaMallocPitch(&d_grad, &d_gradPitch, m_imageWidth * sizeof(float), m_imageHeight));
-    checkCudaErrors(cudaMallocPitch(&d_slope, &d_slopePitch, m_imageWidth * sizeof(float), m_imageHeight));
-
-    checkCudaErrors(cudaMallocPitch(&d_nms, &d_nmsPitch, m_imageWidth, m_imageHeight));
-
-    checkCudaErrors(cudaMallocPitch(&d_thresh, &d_threshPitch, m_imageWidth, m_imageHeight));
+    // Don't want size_t in device kernels
+    size_t pitch = 0;
+    checkCudaErrors(cudaMallocPitch(&d_RGB, &pitch, m_imageWidth * m_nbChannels, m_imageHeight));
+    d_inPitch = (int)pitch;
+    checkCudaErrors(cudaMallocPitch(&d_mono, &pitch, m_imageWidth, m_imageHeight));
+    d_monoPitch = (int)pitch;
+    checkCudaErrors(cudaMallocPitch(&d_blurr, &pitch, m_imageWidth, m_imageHeight));
+    d_blurrPitch = (int)pitch;
+    checkCudaErrors(cudaMallocPitch(&d_sobelX, &pitch, m_imageWidth * sizeof(float), m_imageHeight));
+    d_sobelXPitch = (int)pitch;
+    checkCudaErrors(cudaMallocPitch(&d_sobelY, &pitch, m_imageWidth * sizeof(float), m_imageHeight));
+    d_sobelYPitch = (int)pitch;
+    checkCudaErrors(cudaMallocPitch(&d_grad, &pitch, m_imageWidth * sizeof(float), m_imageHeight));
+    d_gradPitch = (int)pitch;
+    checkCudaErrors(cudaMallocPitch(&d_slope, &pitch, m_imageWidth * sizeof(float), m_imageHeight));
+    d_slopePitch = (int)pitch;
+    checkCudaErrors(cudaMallocPitch(&d_nms, &pitch, m_imageWidth, m_imageHeight));
+    d_nmsPitch = (int)pitch;
+    checkCudaErrors(cudaMallocPitch(&d_thresh, &pitch, m_imageWidth, m_imageHeight));
+    d_threshPitch = (int)pitch;
 
     std::array<std::array<float, 5>, 5> GK_CPU = { { { 2, 4, 5, 4, 2 }, { 4, 9, 12, 9, 4 }, { 5, 12, 15, 12, 5 }, { 4, 9, 12, 9, 4 }, { 2, 4, 5, 4, 2 } } };
     for (int i = 0; i < 5; ++i)

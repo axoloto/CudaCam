@@ -153,7 +153,7 @@ ImguiApp::ImguiApp()
     m_totalFrames(0),
     m_isCvPipelineEnabled(true),
     m_isZoomEnabled(true),
-    m_cvFinalStage(std::make_pair(cvp::CANNY_STAGES.begin()->first, cvp::CANNY_STAGES.begin()->second)),
+    m_cvFinalStage(std::make_pair(cvp::CANNY_STAGES.rbegin()->first, cvp::CANNY_STAGES.rend()->second)),
     m_now(std::chrono::steady_clock::now()),
     m_init(false)
 {
@@ -256,6 +256,21 @@ void ImguiApp::displayMainWidget()
           }
         }
         ImGui::EndCombo();
+      }
+
+      if (m_cvFinalStage.first >= cvp::CannyStage::NMS)
+      {
+        int lowThresh = (int)m_cvPipeline->getLowThreshold();
+        if (ImGui::SliderInt("Low Threshold", &lowThresh, 0, 255))
+        {
+          m_cvPipeline->setLowThreshold((unsigned char)lowThresh);
+        }
+
+        int highThresh = (int)m_cvPipeline->getHighThreshold();
+        if (ImGui::SliderInt("High Threshold", &highThresh, 0, 255))
+        {
+          m_cvPipeline->setHighThreshold((unsigned char)highThresh);
+        }
       }
     }
   }
