@@ -1,4 +1,4 @@
-find_package(Catch2 REQUIRED)
+find_package(Catch2 REQUIRED CONFIG)
 
 include(CTest)
 include(Catch)

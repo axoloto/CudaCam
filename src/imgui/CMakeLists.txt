@@ -1,5 +1,17 @@
 # imgui test executable, with full warnings enabled
-add_executable(test_imgui test.cpp)
+find_package(SDL2 REQUIRED CONFIG)
+find_package(imgui REQUIRED CONFIG)
+find_package(glad REQUIRED CONFIG)
+find_package(OpenGL REQUIRED)
 
-find_package(ImGui-SFML REQUIRED)
-target_link_libraries(test_imgui PRIVATE project_warnings project_options ImGui-SFML::ImGui-SFML)
+string(TOUPPER ${CMAKE_BUILD_TYPE} SUFFIX)
+set(IMGUI_RES_PATH "${imgui_RES_DIRS_${SUFFIX}}/bindings")
+
+file(GLOB SRC "*.cpp" "*.hpp" ${IMGUI_RES_PATH}/imgui_impl_opengl3.cpp ${IMGUI_RES_PATH}/imgui_impl_sdl.cpp)
+
+add_library(imguiApp ${SRC})
+
+target_compile_definitions(imguiApp PUBLIC -DIMGUI_IMPL_OPENGL_LOADER_GLAD)
+target_include_directories(imguiApp PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${IMGUI_RES_PATH})
+
+target_link_libraries(imguiApp PUBLIC cvProcessing io glad::glad SDL2::SDL2 imgui::imgui PRIVATE project_options utils) #project_warnings

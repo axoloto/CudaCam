@@ -1,13 +1,43 @@
 cmake_minimum_required(VERSION 3.15)
 
-# Set the project name to your project name, my project isn't very descriptive
-project(myproject CXX)
+project(CudaCam LANGUAGES C CXX CUDA
+                VERSION 0.2.0
+                DESCRIPTION "Minimal Cuda application processing live webcam stream" 
+                HOMEPAGE_URL "https://github.com/axoloto/CudaCam")
+
 include(cmake/StandardProjectSettings.cmake)
 include(cmake/PreventInSourceBuilds.cmake)
+
+message(STATUS "Version Major ${PROJECT_VERSION_MAJOR}")
+message(STATUS "Version Minor ${PROJECT_VERSION_MINOR}")
+message(STATUS "Version Patch ${PROJECT_VERSION_PATCH}")
+
+message(STATUS "build type ${CMAKE_BUILD_TYPE}")
+message(STATUS "build dir ${CMAKE_BUILD_DIR}")
+
+SET(CMAKE_VERBOSE_MAKEFILE ON)
+
+if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
+    add_compile_definitions(DEBUG_BUILD)
+endif()
+
+# CUDA support mandatory
+include(CheckLanguage)
+check_language(CUDA)
 
 # Link this 'library' to set the c++ standard / compile-time options requested
 add_library(project_options INTERFACE)
 target_compile_features(project_options INTERFACE cxx_std_17)
+
+if(NOT DEFINED CMAKE_CXX_STANDARD)
+  set(CMAKE_CXX_STANDARD 17)
+  set(CMAKE_CXX_STANDARD_REQUIRED True)
+endif()
+
+if(NOT DEFINED CMAKE_CUDA_STANDARD)
+  set(CMAKE_CUDA_STANDARD 17)
+  set(CMAKE_CUDA_STANDARD_REQUIRED True)
+endif()
 
 if(CMAKE_CXX_COMPILER_ID MATCHES ".*Clang")
   option(ENABLE_BUILD_WITH_TIME_TRACE "Enable -ftime-trace to generate time tracing .json files on clang" OFF)
@@ -49,7 +79,6 @@ option(ENABLE_FUZZING "Enable Fuzzing Builds" OFF)
 option(ENABLE_PCH "Enable Precompiled Headers" OFF)
 if(ENABLE_PCH)
   # This sets a global PCH parameter, each project will build its own PCH, which is a good idea if any #define's change
-  #
   # consider breaking this out per project as necessary
   target_precompile_headers(
     project_options

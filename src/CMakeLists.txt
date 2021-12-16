@@ -1,56 +1,23 @@
-option(CPP_STARTER_USE_QT "Enable compilation of QT sample" OFF)
-option(CPP_STARTER_USE_FLTK "Enable compilation of FLTK sample" OFF)
-option(CPP_STARTER_USE_GTKMM "Enable compilation of GTKMM sample" OFF)
-option(CPP_STARTER_USE_IMGUI "Enable compilation of ImGui sample" OFF)
-option(CPP_STARTER_USE_NANA "Enable compilation of Nana GUI sample" OFF)
-option(CPP_STARTER_USE_SDL "Enable compilation of SDL sample" OFF)
 
-# sdl
-if(CPP_STARTER_USE_SDL)
-  message("Using SDL2")
-  add_subdirectory(sdl)
-endif()
+find_package(docopt CONFIG)
 
-# qt
-if(CPP_STARTER_USE_QT)
-  message("Using Qt")
-  add_subdirectory(qt)
-endif()
+add_subdirectory(utils)
+add_subdirectory(io)
+add_subdirectory(cvp)
 
-# fltk test
-if(CPP_STARTER_USE_FLTK)
-  message("Using FLTK")
-  add_subdirectory(fltk)
-endif()
-
-# gtkmm test
-if(CPP_STARTER_USE_GTKMM)
-  message("Using gtkmm")
-  add_subdirectory(gtkmm)
-endif()
-
-# imgui example
-if(CPP_STARTER_USE_IMGUI)
+option(USE_IMGUI "Enable compilation of ImGui sample" ON)
+if(USE_IMGUI)
   message("Using Dear ImGui")
   add_subdirectory(imgui)
 endif()
 
-# Nana
-if(CPP_STARTER_USE_NANA)
-  message("Using Nana")
-  add_subdirectory(nana)
+add_executable(cudaCam main.cpp)
+if(USE_IMGUI)
+  # imgui app
+  target_compile_definitions(cudaCam PRIVATE -DUSE_IMGUI)
+  target_link_libraries(cudaCam PRIVATE project_options utils cvProcessing imguiApp docopt::docopt) #project_warnings
+else()
+  # opencv widget only
+  find_package(OPENCV REQUIRED CONFIG)
+  target_link_libraries(cudaCam PRIVATE project_options project_warnings utils cvProcessing opencv::opencv_highgui docopt::docopt)
 endif()
-
-find_package(fmt)
-find_package(spdlog)
-find_package(docopt)
-
-# Generic test that uses conan libs
-add_executable(intro main.cpp)
-target_link_libraries(
-  intro
-  PRIVATE project_options
-          project_warnings
-          docopt::docopt
-          fmt::fmt
-          spdlog::spdlog)

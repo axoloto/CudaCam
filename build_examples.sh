@@ -24,23 +24,6 @@ Options:
   --qt                        Build qt example
   --sdl                       Build sdl example
 "
-
-function build_fltk() {
-  apt-get install -y --no-install-recommends libfltk1.3-dev libgl1-mesa-dev fluid
-  BUILD_DIR="${1:-build-fltk}"
-  mkdir -p "${BUILD_DIR}"
-  cmake -S "${PROJECT_DIRNAME}" -B "${BUILD_DIR}" -DCPP_STARTER_USE_FLTK=ON
-  cmake --build "${BUILD_DIR}" -j
-}
-
-function build_gtkmm() {
-  apt-get install -y --no-install-recommends pkg-config libgtkmm-3.0-dev
-  BUILD_DIR="${1:-build-gtkmm}"
-  mkdir -p "${BUILD_DIR}"
-  cmake -S "${PROJECT_DIRNAME}" -B "${BUILD_DIR}" -DCPP_STARTER_USE_GTKMM=ON
-  cmake --build "${BUILD_DIR}" -j
-}
-
 function build_imgui() {
   apt-get install -y --no-install-recommends pkg-config libgl1-mesa-dev
   BUILD_DIR="${1:-build-imgui}"
@@ -49,42 +32,8 @@ function build_imgui() {
   cmake --build "${BUILD_DIR}" -j
 }
 
-function build_nana() {
-  # CMakeLists.txt is 'supposed' to install all of these automatically, but for
-  # some reason it doesn't always work. Installing them manually does work.
-  apt-get install -y --no-install-recommends libjpeg8-dev libpng-dev \
-    libasound2-dev alsa-utils alsa-oss libx11-dev libxft-dev libxcursor-dev
-  BUILD_DIR="${1:-build-nana}"
-  mkdir -p "${BUILD_DIR}"
-  # Note: Nana's headers trigger the -Wshadow warning, and cannot be compiled with -Werror.
-  # Supposedly, this is fixed in the develop-1.8 branch, but I cannot confirm.
-  cmake -S "${PROJECT_DIRNAME}" -B "${BUILD_DIR}" -DCPP_STARTER_USE_NANA=ON -DWARNINGS_AS_ERRORS=FALSE
-  cmake --build "${BUILD_DIR}" -j
-}
-
-function build_qt() {
-  apt-get install -y --no-install-recommends qt5-default qtbase5-dev
-  BUILD_DIR="${1:-build-qt}"
-  mkdir -p "${BUILD_DIR}"
-  cmake -S "${PROJECT_DIRNAME}" -B "${BUILD_DIR}" -DCPP_STARTER_USE_QT=ON
-  cmake --build "${BUILD_DIR}" -j
-}
-
-function build_sdl() {
-  pip install mako
-  BUILD_DIR="${1:-build-sdl}"
-  mkdir -p "${BUILD_DIR}"
-  cmake -S "${PROJECT_DIRNAME}" -B "${BUILD_DIR}" -DCPP_STARTER_USE_SDL=ON
-  cmake --build "${BUILD_DIR}" -j
-}
-
 function build_all() {
-  build_fltk
-  build_gtkmm
   build_imgui
-  build_nana
-  build_qt
-  build_sdl
 }
 
 # Parse the available options
@@ -108,23 +57,8 @@ do
     --all)
       build_all $BUILD_DIR
       shift;;
-    --fltk)
-      build_fltk $BUILD_DIR
-      shift;;
-    --gtkmm)
-      build_gtkmm $BUILD_DIR
-      shift;;
     --imgui)
       build_imgui $BUILD_DIR
-      shift;;
-    --nana)
-      build_nana $BUILD_DIR
-      shift;;
-    --qt)
-      build_qt $BUILD_DIR
-      shift;;
-    --sdl)
-      build_sdl $BUILD_DIR
       shift;;
     --)
       shift
