@@ -1,7 +1,7 @@
 #include <iostream>
 
 #include "cvPipeline.hpp"
-#include "cannyEdge.cuh"
+#include "cannyEdgeH.hpp"
 #include "logging.hpp"
 
 using namespace cvp;
@@ -29,17 +29,13 @@ bool cvPipeline::process(cv::Mat inputImage, CannyStage finalStage)
     LOG_ERROR("Blank frame grabbed");
     return false;
   }
-  else if (inputImage.type() != CV_8UC3)
+  else if (inputImage.type() != CV_8UC3 && inputImage.type() != CV_8UC1)
   {
-    LOG_ERROR("Only supporting CV_8UC3 input type for now");
+    LOG_ERROR("Only supporting CV_8UC3 and CV_8UC1 input types for now");
     return false;
   }
 
   m_cudaCannyEdge->run(inputImage, finalStage);
-
-  cv::Mat mat;
-  //mat.create(inputImage.size(), CV_8UC1);
-  //m_cudaCannyEdge->unloadImage(mat.ptr());
 
   return true;
 }
