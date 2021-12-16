@@ -88,7 +88,7 @@ bool ImguiApp::initOpenGL()
 
 bool ImguiApp::initCvPipeline()
 {
-  m_cvPipeline = std::make_unique<cvp::cvPipeline>(m_pbo, m_webcam->frame().cols, m_webcam->frame().rows);
+  m_cvPipeline = std::make_unique<cvp::cvPipeline>(m_pbo, m_webcam->frame().cols, m_webcam->frame().rows, m_webcam->frame().channels());
 
   return m_cvPipeline.get();
 }

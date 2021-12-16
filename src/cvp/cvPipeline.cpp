@@ -6,9 +6,9 @@
 
 using namespace cvp;
 
-cvPipeline::cvPipeline(const unsigned int pbo, const unsigned int inputImageCols, const unsigned int inputImageRows)
+cvPipeline::cvPipeline(const unsigned int pbo, const unsigned int inputImageCols, const unsigned int inputImageRows, const int inputNbChannels)
 {
-  m_cudaCannyEdge = std::make_unique<cuda::CannyEdgeRGB8U>(pbo, inputImageCols, inputImageRows);
+  m_cudaCannyEdge = std::make_unique<cuda::CannyEdge>(pbo, inputImageCols, inputImageRows, inputNbChannels);
 }
 
 cvPipeline::~cvPipeline()

@@ -14,16 +14,13 @@ namespace cvp
 // Forward declaration of cuda class
 namespace cuda
 {
-  template<class T, size_t nbChannels>
   class CannyEdge;
-
-  using CannyEdgeRGB8U = CannyEdge<unsigned char, 3>;
 }// namespace cuda
 
 class cvPipeline
 {
 public:
-  cvPipeline(const unsigned int pbo, const unsigned int inputImageCols, const unsigned int inputImageRows);
+  cvPipeline(const unsigned int pbo, const unsigned int inputImageCols, const unsigned int inputImageRows, const int inputImageNbChannels);
   ~cvPipeline();
 
   bool process(cv::Mat inputImage, CannyStage finalStage);
@@ -35,6 +32,6 @@ public:
   unsigned char getHighThreshold();
 
 private:
-  std::unique_ptr<cuda::CannyEdgeRGB8U> m_cudaCannyEdge;
+  std::unique_ptr<cuda::CannyEdge> m_cudaCannyEdge;
 };
 }// namespace cvp
