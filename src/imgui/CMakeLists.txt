@@ -14,4 +14,4 @@ add_library(imguiApp ${SRC})
 target_compile_definitions(imguiApp PUBLIC -DIMGUI_IMPL_OPENGL_LOADER_GLAD)
 target_include_directories(imguiApp PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${IMGUI_RES_PATH})
 
-target_link_libraries(imguiApp PUBLIC cvProcessing io glad::glad SDL2::SDL2 PRIVATE project_options utils imgui::imgui) #project_warnings
+target_link_libraries(imguiApp PUBLIC cvProcessing io glad::glad SDL2::SDL2 imgui::imgui PRIVATE project_options utils) #project_warnings

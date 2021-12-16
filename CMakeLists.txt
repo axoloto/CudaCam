@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.15)
 
 project(CudaCam LANGUAGES C CXX CUDA
-                VERSION 0.1.0
+                VERSION 0.2.0
                 DESCRIPTION "Minimal Cuda application processing live webcam stream" 
                 HOMEPAGE_URL "https://github.com/axoloto/CudaCam")
 

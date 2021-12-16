@@ -6,6 +6,8 @@ namespace cuda
 {
   extern __constant__ float GK[5][5];
 
+  inline constexpr int MAX_2D_BLOCK_SIDE = 32;
+
   __global__ void float2uchar(
     const float *const __restrict__ in,
     unsigned char *const __restrict__ out,

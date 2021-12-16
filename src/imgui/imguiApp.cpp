@@ -176,6 +176,8 @@ ImguiApp::ImguiApp()
     m_cvFinalStage(std::make_pair(cvp::CANNY_STAGES.rbegin()->first, cvp::CANNY_STAGES.rbegin()->second)),
     m_init(false)
 {
+  LOG_INFO("Starting {}", m_nameApp);
+
   if (!initWindow())
   {
     LOG_ERROR("Failed to initialize application window");
@@ -200,14 +202,18 @@ ImguiApp::ImguiApp()
     return;
   }
 
-  LOG_INFO("Application correctly initialized");
+  LOG_INFO("{} started", m_nameApp);
 
   m_init = true;
 }
 
 ImguiApp::~ImguiApp()
 {
+  LOG_INFO("Closing {}", m_nameApp);
+
   closeWindow();
+
+  LOG_INFO("{} closed", m_nameApp);
 }
 
 void ImguiApp::displayMainWidget()
@@ -316,8 +322,11 @@ void ImguiApp::displayLiveStream()
       ImGui::SetNextWindowPos(ImVec2(150, 120), ImGuiCond_FirstUseEver);
       ImGui::SetNextWindowSize(ImVec2(image.cols, image.rows), ImGuiCond_FirstUseEver);
       ImGui::Begin("Live Stream");
+      const auto &io = ImGui::GetIO();
+      ImVec2 pos = ImGui::GetCursorScreenPos();
       ImGui::Text("%d x %d", image.cols, image.rows);
       ImGui::Image((void *)(intptr_t)m_texture, ImVec2(image.cols, image.rows));
+      zoomToolTip(pos, io.MousePos);
       ImGui::End();
     }
     else
@@ -342,28 +351,32 @@ void ImguiApp::displayLiveStream()
     ImVec2 pos = ImGui::GetCursorScreenPos();
     ImGui::Text("%d x %d CUDA", m_pboCols, m_pboRows);
     ImGui::Image((void *)(intptr_t)m_texture, ImVec2(m_pboCols, m_pboRows));
-
-    if (m_isZoomEnabled && ImGui::IsItemHovered())
-    {
-      float roiSize = 128.0f;
-
-      float roiStartX = io.MousePos.x - pos.x - roiSize * 0.5f;
-      roiStartX = std::max(roiStartX, 0.0f);
-      roiStartX = std::min(roiStartX, m_pboCols - roiSize);
-
-      float roiStartY = io.MousePos.y - pos.y - roiSize * 0.5f;
-      roiStartY = std::max(roiStartY, 0.0f);
-      roiStartY = std::min(roiStartY, m_pboRows - roiSize);
-
-      ImGui::BeginTooltip();
-      ImGui::Text("Min: (%.2f, %.2f)", roiStartX, roiStartY);
-      ImGui::Text("Max: (%.2f, %.2f)", roiStartX + roiSize, roiStartY + roiSize);
-      ImVec2 uv0 = ImVec2((roiStartX) / m_pboCols, (roiStartY) / m_pboRows);
-      ImVec2 uv1 = ImVec2((roiStartX + roiSize) / m_pboCols, (roiStartY + roiSize) / m_pboRows);
-      ImGui::Image((void *)(intptr_t)m_texture, ImVec2(roiSize * m_zoom, roiSize * m_zoom), uv0, uv1);
-      ImGui::EndTooltip();
-    }
+    zoomToolTip(pos, io.MousePos);
     ImGui::End();
+  }
+}
+
+void ImguiApp::zoomToolTip(ImVec2 cursorPos, ImVec2 ioPos)
+{
+  if (m_isZoomEnabled && ImGui::IsItemHovered())
+  {
+    float roiSize = 128.0f;
+
+    float roiStartX = ioPos.x - cursorPos.x - roiSize * 0.5f;
+    roiStartX = std::max(roiStartX, 0.0f);
+    roiStartX = std::min(roiStartX, m_pboCols - roiSize);
+
+    float roiStartY = ioPos.y - cursorPos.y - roiSize * 0.5f;
+    roiStartY = std::max(roiStartY, 0.0f);
+    roiStartY = std::min(roiStartY, m_pboRows - roiSize);
+
+    ImGui::BeginTooltip();
+    ImGui::Text("Min: (%.2f, %.2f)", roiStartX, roiStartY);
+    ImGui::Text("Max: (%.2f, %.2f)", roiStartX + roiSize, roiStartY + roiSize);
+    ImVec2 uv0 = ImVec2((roiStartX) / m_pboCols, (roiStartY) / m_pboRows);
+    ImVec2 uv1 = ImVec2((roiStartX + roiSize) / m_pboCols, (roiStartY + roiSize) / m_pboRows);
+    ImGui::Image((void *)(intptr_t)m_texture, ImVec2(roiSize * m_zoom, roiSize * m_zoom), uv0, uv1);
+    ImGui::EndTooltip();
   }
 }
 
@@ -391,6 +404,8 @@ void ImguiApp::run()
 {
   if (!m_init) return;
 
+  LOG_INFO("CUDA processing started");
+
   while (checkSDLStatus())
   {
     runLoopStarter();
@@ -409,4 +424,6 @@ void ImguiApp::run()
 
     runLoopEnder();
   }
+
+  LOG_INFO("CUDA processing finished");
 }

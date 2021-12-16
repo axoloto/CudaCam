@@ -4,6 +4,8 @@
 #include <SDL2/SDL.h>
 #undef main//Thank you SDL
 
+#include <imgui.h>
+
 #include <string>
 #include <array>
 #include <memory>
@@ -36,6 +38,8 @@ private:
 
   void runLoopStarter();
   void runLoopEnder();
+
+  void zoomToolTip(ImVec2 cursorPos, ImVec2 ioPos);
 
   std::string m_nameApp;
 

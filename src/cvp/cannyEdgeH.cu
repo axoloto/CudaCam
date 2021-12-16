@@ -15,9 +15,9 @@ namespace cuda
       m_inputW(imageWidth),
       m_inputH(imageHeight),
       m_inputNbChannels(imageNbChannels),
-      m_inputBlockSize(32),
+      m_inputBlockSize(MAX_2D_BLOCK_SIDE),
       m_lowThresh(10),
-      m_highThresh(60)
+      m_highThresh(40)
   {
     checkCudaErrors(cudaGraphicsGLRegisterBuffer(&d_pbo, pbo, cudaGraphicsMapFlagsWriteDiscard));
     _initAlloc();
@@ -135,6 +135,12 @@ namespace cuda
 
   void CannyEdge::_sendOutputToOpenGL(CannyStage finalStage)
   {
+    // Simple and clean way to implement image output switch
+    // at the cost of a GPU-GPU copy.
+
+    // If needed we could easily get rid of this unecessary copy
+    // by using pbo buffer directly as output in our final kernel
+
     LOG_DEBUG("Start sending output image to OpenGL");
 
     size_t dumbSize;
@@ -277,7 +283,7 @@ namespace cuda
       nbIters++;
     }
 
-    LOG_INFO("Number of hysteresis iterations {}, number of blocks with unfinished work {}", nbIters, isImageModified);
+    LOG_DEBUG("Number of hysteresis iterations {}, number of blocks with unfinished work {}", nbIters, isImageModified);
 
     std::swap(d_hyster, d_hysterTemp);
     std::swap(d_hysterPitch, d_hysterTempPitch);

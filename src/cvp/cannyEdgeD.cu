@@ -9,19 +9,22 @@ namespace cuda
 {
   __constant__ float GK[5][5];
 
+  // Mono
   constexpr float B_WEIGHT = 0.114f;
   constexpr float G_WEIGHT = 0.587f;
   constexpr float R_WEIGHT = 0.299f;
-
   constexpr int B_WT = static_cast<int>(64.0f * B_WEIGHT + 0.5f);
   constexpr int G_WT = static_cast<int>(64.0f * G_WEIGHT + 0.5f);
   constexpr int R_WT = static_cast<int>(64.0f * R_WEIGHT + 0.5f);
 
-  constexpr int G_O_TILE_WIDTH = 28;// Must be -4 blockSize
-  constexpr int N_O_TILE_WIDTH = 30;// Must be -2 blockSize
-  constexpr int S_O_TILE_WIDTH = 30;// Must be -2 blockSize
-  constexpr int H_O_TILE_WIDTH = 30;// Must be -2 blockSize
+  // Gaussian
+  constexpr int G_O_TILE_WIDTH = MAX_2D_BLOCK_SIDE - 4;// 4 halo cells
+  // Sobel/NonMaxSuppr/Hysteresis
+  constexpr int O_TILE_WIDTH = MAX_2D_BLOCK_SIDE - 2;// 2 halo cells
 
+  constexpr int GRAD_COEFF = 4;
+
+  // DoubleTresh/NonMaxSuppr/Hysteresis
   constexpr unsigned char FINAL_EDGE = 255;
   constexpr unsigned char CANDIDATE_EDGE = 128;
   constexpr unsigned char NO_EDGE = 0;
@@ -125,13 +128,13 @@ namespace cuda
     int tx = threadIdx.x;
     int ty = threadIdx.y;
 
-    int col_o = S_O_TILE_WIDTH * blockIdx.x + tx;
-    int row_o = S_O_TILE_WIDTH * blockIdx.y + ty;
+    int col_o = O_TILE_WIDTH * blockIdx.x + tx;
+    int row_o = O_TILE_WIDTH * blockIdx.y + ty;
 
     int row_i = row_o - 1;// maskWidth = 3/2
     int col_i = col_o - 1;// maskHeight = 3/2
 
-    __shared__ unsigned char blurr_s[S_O_TILE_WIDTH + 2][S_O_TILE_WIDTH + 2];// 1 halo cells on each side of the tile
+    __shared__ unsigned char blurr_s[O_TILE_WIDTH + 2][O_TILE_WIDTH + 2];// 1 halo cell on each side of the tile
 
     if ((row_i >= 0) && (row_i < height) && (col_i >= 0) && (col_i < width))
     {
@@ -144,7 +147,7 @@ namespace cuda
 
     __syncthreads();
 
-    if (ty < S_O_TILE_WIDTH && tx < S_O_TILE_WIDTH)
+    if (ty < O_TILE_WIDTH && tx < O_TILE_WIDTH)
     {
       if (col_o < width && row_o < height)
       {
@@ -186,7 +189,7 @@ namespace cuda
       const float sX = sobelX[row * sobelXPitch + col];
       const float sY = sobelY[row * sobelYPitch + col];
 
-      grad[row * gradPitch + col] = 4 * sqrtf(sX * sX + sY * sY);
+      grad[row * gradPitch + col] = GRAD_COEFF * sqrtf(sX * sX + sY * sY);
       slope[row * slopePitch + col] = atan2(sX, sY);
     }
   }
@@ -205,13 +208,13 @@ namespace cuda
     int tx = threadIdx.x;
     int ty = threadIdx.y;
 
-    int col_o = N_O_TILE_WIDTH * blockIdx.x + tx;
-    int row_o = N_O_TILE_WIDTH * blockIdx.y + ty;
+    int col_o = O_TILE_WIDTH * blockIdx.x + tx;
+    int row_o = O_TILE_WIDTH * blockIdx.y + ty;
 
     int row_i = row_o - 1;
     int col_i = col_o - 1;
 
-    __shared__ float grad_s[N_O_TILE_WIDTH + 2][N_O_TILE_WIDTH + 2];// 1 halo cells on each side of the tile
+    __shared__ float grad_s[O_TILE_WIDTH + 2][O_TILE_WIDTH + 2];// 1 halo cells on each side of the tile
 
     if ((row_i >= 0) && (row_i < height) && (col_i >= 0) && (col_i < width))
     {
@@ -224,7 +227,7 @@ namespace cuda
 
     __syncthreads();
 
-    if (ty < N_O_TILE_WIDTH && tx < N_O_TILE_WIDTH)
+    if (ty < O_TILE_WIDTH && tx < O_TILE_WIDTH)
     {
       if (col_o < width && row_o < height)
       {
@@ -266,7 +269,7 @@ namespace cuda
           r = grad_s[ty + 2][tx + 2];
         }
 
-        // Suppressing values wich are not maximums
+        // Suppressing values wich are not local maximums
         nms[row_o * nmsPitch + col_o] = (q <= gradVal && r <= gradVal) ? min((unsigned char)gradVal, 255) : 0;
       }
     }
@@ -307,14 +310,14 @@ namespace cuda
     int tx = threadIdx.x;
     int ty = threadIdx.y;
 
-    int col_o = H_O_TILE_WIDTH * blockIdx.x + tx;
-    int row_o = H_O_TILE_WIDTH * blockIdx.y + ty;
+    int col_o = O_TILE_WIDTH * blockIdx.x + tx;
+    int row_o = O_TILE_WIDTH * blockIdx.y + ty;
 
     int row_i = row_o - 1;
     int col_i = col_o - 1;
 
     __shared__ int isBlockModified[2];
-    __shared__ float thresh_s[H_O_TILE_WIDTH + 2][H_O_TILE_WIDTH + 2];// 1 halo cells on each side of the tile
+    __shared__ float thresh_s[O_TILE_WIDTH + 2][O_TILE_WIDTH + 2];// 1 halo cell on each side of the tile
 
     if (tx == 0 && ty == 0)
     {
@@ -340,7 +343,7 @@ namespace cuda
 
       __syncthreads();
 
-      if (ty < N_O_TILE_WIDTH && tx < N_O_TILE_WIDTH)
+      if (ty < O_TILE_WIDTH && tx < O_TILE_WIDTH)
       {
         if (thresh_s[ty + 1][tx + 1] == CANDIDATE_EDGE
             && (thresh_s[ty + 2][tx + 2] == FINAL_EDGE
@@ -367,7 +370,7 @@ namespace cuda
 
     __syncthreads();
 
-    if (ty < N_O_TILE_WIDTH && tx < N_O_TILE_WIDTH)
+    if (ty < O_TILE_WIDTH && tx < O_TILE_WIDTH)
     {
       if (col_o < width && row_o < height)
       {
