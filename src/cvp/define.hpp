@@ -25,11 +25,11 @@ struct CompareCannyStage
 };
 
 static const std::map<CannyStage, std::string, CompareCannyStage> CANNY_STAGES{
-  { CannyStage::MONO, "Mono Conversion" },
-  { CannyStage::GAUSSIAN, "Gaussian Noise Removal" },
-  { CannyStage::GRADIENT, "Gradient Computation" },
-  { CannyStage::NMS, "Non Maximum Suppression" },
-  { CannyStage::THRESH, "Double Threshold" },
-  { CannyStage::HYSTER, "Hysteresis" }
+  { CannyStage::MONO, "1/6 Mono Conversion" },
+  { CannyStage::GAUSSIAN, "2/6 Gaussian Noise Removal" },
+  { CannyStage::GRADIENT, "3/6 Gradient Computation" },
+  { CannyStage::NMS, "4/6 Non Maximum Suppression" },
+  { CannyStage::THRESH, "5/6 Double Threshold" },
+  { CannyStage::HYSTER, "6/6 Hysteresis" }
 };
 }// namespace cvp

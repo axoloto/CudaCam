@@ -7,7 +7,7 @@
 
 #include <memory>
 
-// Proxy compiled with NVCC but not including any cuda calls to be used by Cpp Compilers further on
+// Pure cpp proxy not including any cuda calls
 
 namespace cvp
 {
@@ -26,10 +26,13 @@ public:
   bool process(cv::Mat inputImage, CannyStage finalStage);
 
   void setLowThreshold(unsigned char low);
-  unsigned char getLowThreshold();
+  unsigned char getLowThreshold() const;
 
   void setHighThreshold(unsigned char high);
-  unsigned char getHighThreshold();
+  unsigned char getHighThreshold() const;
+
+  void enableCudaProfiling(bool profiling);
+  bool isCudaProfilingEnabled() const;
 
 private:
   std::unique_ptr<cuda::CannyEdge> m_cudaCannyEdge;

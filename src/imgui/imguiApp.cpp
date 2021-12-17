@@ -8,6 +8,7 @@
 #include "imguiApp.hpp"
 #include "logging.hpp"
 #include "utils.hpp"
+#include "timer.hpp"
 
 using namespace App;
 
@@ -81,6 +82,14 @@ bool ImguiApp::initOpenGL()
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+  glBindTexture(GL_TEXTURE_2D, 0);
+
+  glGenTextures(1, &m_textureCuda);
+  glBindTexture(GL_TEXTURE_2D, m_textureCuda);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
   GLint swiz[4] = { GL_ONE, GL_ONE, GL_ONE, GL_RED };// Monochrome output texture: RED -> GRAY
   glTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_RGBA, swiz);
   glBindTexture(GL_TEXTURE_2D, 0);
@@ -107,6 +116,7 @@ bool ImguiApp::closeWindow()
 
   glDeleteBuffers(1, &m_pbo);
   glDeleteTextures(1, &m_texture);
+  glDeleteTextures(1, &m_textureCuda);
   return true;
 }
 
@@ -170,6 +180,7 @@ ImguiApp::ImguiApp()
     m_totalFrames(0),
     m_targetFps(60),
     m_texture(0),
+    m_textureCuda(0),
     m_pboCols(0),
     m_pboRows(0),
     m_zoom(2),
@@ -299,6 +310,53 @@ void ImguiApp::displayMainWidget()
           m_cvPipeline->setHighThreshold((unsigned char)highThresh);
         }
       }
+
+      ImGui::Spacing();
+      ImGui::Separator();
+      ImGui::Spacing();
+
+      bool kernelProfiling = m_cvPipeline->isCudaProfilingEnabled();
+      if (ImGui::Checkbox("Cuda Profiling", &kernelProfiling))
+      {
+        m_cvPipeline->enableCudaProfiling(kernelProfiling);
+      }
+
+      if (kernelProfiling)
+      {
+        if (ImGui::BeginTable("##Profiled Kernels", 2))
+        {
+          float sum = 0.0f;
+
+          const auto &timerM = timerManager::Get();
+          ImGui::TableNextRow();
+          ImGui::TableNextColumn();
+          ImGui::Text("Kernel Name");
+          ImGui::TableNextColumn();
+          ImGui::Text("ms");
+
+          for (auto it = timerM.beginTimerList(); it != timerM.endTimerList(); it++)
+          {
+            float avgTime = it->second.averageTime();
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::Text(it->first.c_str());
+            ImGui::TableNextColumn();
+            ImGui::Text("%.3f", avgTime);
+            sum += avgTime;
+
+            if (m_cvFinalStage.second == it->first)
+              break;
+          }
+
+          ImGui::TableNextRow();
+          ImGui::TableNextColumn();
+          ImGui::Text("Total Cuda Processing");
+          ImGui::TableNextColumn();
+          ImGui::Text("%.3f", sum);
+
+          ImGui::EndTable();
+        }
+      }
     }
   }
 
@@ -328,7 +386,7 @@ void ImguiApp::displayLiveStream()
       ImVec2 pos = ImGui::GetCursorScreenPos();
       ImGui::Text("%d x %d", image.cols, image.rows);
       ImGui::Image((void *)(intptr_t)m_texture, ImVec2(image.cols, image.rows));
-      zoomToolTip(pos, io.MousePos);
+      zoomToolTip(m_texture, pos, io.MousePos);
       ImGui::End();
     }
     else
@@ -340,7 +398,7 @@ void ImguiApp::displayLiveStream()
   {
     // Interop OpenGL/CUDA
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, m_pbo);
-    glBindTexture(GL_TEXTURE_2D, m_texture);
+    glBindTexture(GL_TEXTURE_2D, m_textureCuda);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, m_pboCols, m_pboRows, 0, GL_RED, GL_UNSIGNED_BYTE, nullptr);
     glBindTexture(GL_TEXTURE_2D, 0);
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
@@ -352,13 +410,13 @@ void ImguiApp::displayLiveStream()
     const auto &io = ImGui::GetIO();
     ImVec2 pos = ImGui::GetCursorScreenPos();
     ImGui::Text("%d x %d CUDA", m_pboCols, m_pboRows);
-    ImGui::Image((void *)(intptr_t)m_texture, ImVec2(m_pboCols, m_pboRows));
-    zoomToolTip(pos, io.MousePos);
+    ImGui::Image((void *)(intptr_t)m_textureCuda, ImVec2(m_pboCols, m_pboRows));
+    zoomToolTip(m_textureCuda, pos, io.MousePos);
     ImGui::End();
   }
 }
 
-void ImguiApp::zoomToolTip(ImVec2 cursorPos, ImVec2 ioPos)
+void ImguiApp::zoomToolTip(GLuint textID, ImVec2 cursorPos, ImVec2 ioPos)
 {
   if (m_isZoomEnabled && ImGui::IsItemHovered())
   {
@@ -377,7 +435,7 @@ void ImguiApp::zoomToolTip(ImVec2 cursorPos, ImVec2 ioPos)
     ImGui::Text("Max: (%.2f, %.2f)", roiStartX + roiSize, roiStartY + roiSize);
     ImVec2 uv0 = ImVec2((roiStartX) / m_pboCols, (roiStartY) / m_pboRows);
     ImVec2 uv1 = ImVec2((roiStartX + roiSize) / m_pboCols, (roiStartY + roiSize) / m_pboRows);
-    ImGui::Image((void *)(intptr_t)m_texture, ImVec2(roiSize * m_zoom, roiSize * m_zoom), uv0, uv1);
+    ImGui::Image((void *)(intptr_t)textID, ImVec2(roiSize * m_zoom, roiSize * m_zoom), uv0, uv1);
     ImGui::EndTooltip();
   }
 }
@@ -421,10 +479,7 @@ void ImguiApp::run()
 
       if (m_isCvPipelineEnabled)
       {
-        auto start = std::chrono::steady_clock::now();
         m_cvPipeline->process(m_webcam->frame(), m_cvFinalStage.first);
-        auto end = std::chrono::steady_clock::now();
-        LOG_INFO("Time spent in cvPipeline {}", std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count());
       }
     }
 

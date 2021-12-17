@@ -50,7 +50,7 @@ void cvPipeline::setLowThreshold(unsigned char low)
   m_cudaCannyEdge->setLowThreshold(low);
 }
 
-unsigned char cvPipeline::getLowThreshold()
+unsigned char cvPipeline::getLowThreshold() const
 {
   if (!m_cudaCannyEdge.get())
   {
@@ -70,7 +70,7 @@ void cvPipeline::setHighThreshold(unsigned char high)
   m_cudaCannyEdge->setHighThreshold(high);
 }
 
-unsigned char cvPipeline::getHighThreshold()
+unsigned char cvPipeline::getHighThreshold() const
 {
   if (!m_cudaCannyEdge.get())
   {
@@ -78,4 +78,19 @@ unsigned char cvPipeline::getHighThreshold()
     return 255;
   }
   return m_cudaCannyEdge->getHighThreshold();
+}
+
+void cvPipeline::enableCudaProfiling(bool profiling)
+{
+  if (!m_cudaCannyEdge.get())
+  {
+    LOG_ERROR("Cannot modify profile Cuda, Cuda is not ready.");
+    return;
+  }
+  m_cudaCannyEdge->enableKernelProfiling(profiling);
+}
+
+bool cvPipeline::isCudaProfilingEnabled() const
+{
+  return m_cudaCannyEdge ? m_cudaCannyEdge->isKernelProfilingEnabled() : false;
 }
