@@ -81,6 +81,8 @@ bool ImguiApp::initOpenGL()
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+  GLint swiz[4] = { GL_ONE, GL_ONE, GL_ONE, GL_RED };// Monochrome output texture: RED -> GRAY
+  glTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_RGBA, swiz);
   glBindTexture(GL_TEXTURE_2D, 0);
 
   return true;
@@ -417,7 +419,13 @@ void ImguiApp::run()
       if (m_takeLastFrame)
         m_webcam->read();
 
-      m_cvPipeline->process(m_webcam->frame(), m_cvFinalStage.first);
+      if (m_isCvPipelineEnabled)
+      {
+        auto start = std::chrono::steady_clock::now();
+        m_cvPipeline->process(m_webcam->frame(), m_cvFinalStage.first);
+        auto end = std::chrono::steady_clock::now();
+        LOG_INFO("Time spent in cvPipeline {}", std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count());
+      }
     }
 
     displayLiveStream();
