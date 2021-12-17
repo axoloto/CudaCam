@@ -1,10 +1,13 @@
 
+#include <memory>
+
 #include "cannyEdgeH.hpp"
 #include "cannyEdgeD.hpp"
 
 #include "logging.hpp"
 #include "define.hpp"
 #include "helper.hpp"
+#include "timer.hpp"
 
 namespace cvp
 {
@@ -17,15 +20,30 @@ namespace cuda
       m_inputNbChannels(imageNbChannels),
       m_inputBlockSize(MAX_2D_BLOCK_SIDE),
       m_lowThresh(10),
-      m_highThresh(40)
+      m_highThresh(40),
+      m_isKernelProfilingEnabled(true)
   {
     checkCudaErrors(cudaGraphicsGLRegisterBuffer(&d_pbo, pbo, cudaGraphicsMapFlagsWriteDiscard));
     _initAlloc();
+
+    d_start = std::make_unique<cudaEvent_t>();
+    cudaEventCreate(d_start.get());
+
+    d_stop = std::make_unique<cudaEvent_t>();
+    cudaEventCreate(d_stop.get());
+
+    auto &timerM = timerManager::Get();
+    std::for_each(cvp::CANNY_STAGES.begin(), cvp::CANNY_STAGES.end(), [&](const auto &it)
+      { timerM.createTimer(it.second); });
   };
 
   CannyEdge::~CannyEdge()
   {
     _endAlloc();
+    if (d_start)
+      cudaEventDestroy(*d_start);
+    if (d_stop)
+      cudaEventDestroy(*d_stop);
   }
 
   void CannyEdge::run(cv::Mat input, cvp::CannyStage finalStage)// Need to add checks
@@ -197,9 +215,13 @@ namespace cuda
   {
     LOG_DEBUG("Start Gray Conversion");
 
+    _startCudaTimer();
+
     dim3 blocks(m_inputBlockSize, m_inputBlockSize, 1);
     dim3 grid((m_inputW + m_inputBlockSize - 1) / m_inputBlockSize, (m_inputH + m_inputBlockSize - 1) / m_inputBlockSize, 1);
     rgb2mono<<<grid, blocks>>>(d_rgb, d_mono, m_inputW, m_inputH, d_rgbPitch, d_monoPitch);
+
+    _endCudaTimer(CannyStage::MONO);
 
     LOG_DEBUG("End Gray Conversion");
   }
@@ -208,10 +230,14 @@ namespace cuda
   {
     LOG_DEBUG("Start Gaussian Filter");
 
+    _startCudaTimer();
+
     int outputBlockSize = m_inputBlockSize - 4;//2 halo cells on each border
     dim3 blocks(m_inputBlockSize, m_inputBlockSize, 1);
     dim3 grid((m_inputW + outputBlockSize - 1) / outputBlockSize, (m_inputH + outputBlockSize - 1) / outputBlockSize, 1);
     gaussianFilter5x5<<<grid, blocks>>>(d_mono, d_blurr, m_inputW, m_inputH, d_monoPitch, d_blurrPitch);
+
+    _endCudaTimer(CannyStage::GAUSSIAN);
 
     LOG_DEBUG("End Gaussian Filter");
   }
@@ -220,6 +246,8 @@ namespace cuda
   {
     LOG_DEBUG("Start Gradient Computation");
     dim3 blocks(m_inputBlockSize, m_inputBlockSize, 1);
+
+    _startCudaTimer();
 
     LOG_DEBUG(" 1-Sobel");
     int outputBlockSize = m_inputBlockSize - 2;//1 halo cell on each border
@@ -230,6 +258,8 @@ namespace cuda
     dim3 gradGrid((m_inputW + m_inputBlockSize - 1) / m_inputBlockSize, (m_inputH + m_inputBlockSize - 1) / m_inputBlockSize, 1);
     gradSlope<<<gradGrid, blocks>>>(d_sobelX, d_sobelY, d_grad, d_slope, m_inputW, m_inputH, d_sobelXPitch / sizeof(float), d_sobelYPitch / sizeof(float), d_gradPitch / sizeof(float), d_slopePitch / sizeof(float));
 
+    _endCudaTimer(CannyStage::GRADIENT);
+
     LOG_DEBUG("End Gradient Computation");
   }
 
@@ -237,10 +267,14 @@ namespace cuda
   {
     LOG_DEBUG("Start Non Max Suppression");
 
+    _startCudaTimer();
+
     int outputBlockSize = m_inputBlockSize - 2;
     dim3 blocks(m_inputBlockSize, m_inputBlockSize, 1);
     dim3 grid((m_inputW + outputBlockSize - 1) / outputBlockSize, (m_inputH + outputBlockSize - 1) / outputBlockSize, 1);
     nonMaxSuppr<<<grid, blocks>>>(d_grad, d_slope, d_nms, m_inputW, m_inputH, d_gradPitch / sizeof(float), d_slopePitch / sizeof(float), d_nmsPitch);
+
+    _endCudaTimer(CannyStage::NMS);
 
     LOG_DEBUG("End Non Max Suppression");
   }
@@ -249,9 +283,13 @@ namespace cuda
   {
     LOG_DEBUG("Start Double Threshold");
 
+    _startCudaTimer();
+
     dim3 blocks(m_inputBlockSize, m_inputBlockSize, 1);
     dim3 grid((m_inputW + m_inputBlockSize - 1) / m_inputBlockSize, (m_inputH + m_inputBlockSize - 1) / m_inputBlockSize, 1);
     doubleThreshold<<<grid, blocks>>>(d_nms, d_thresh, m_inputW, m_inputH, d_nmsPitch, d_threshPitch, m_lowThresh, m_highThresh);
+
+    _endCudaTimer(CannyStage::THRESH);
 
     LOG_DEBUG("End Double Threshold");
   }
@@ -259,6 +297,8 @@ namespace cuda
   void CannyEdge::_runHysteresis()
   {
     LOG_DEBUG("Start Hysteresis");
+
+    _startCudaTimer();
 
     int outputBlockSize = m_inputBlockSize - 2;
     dim3 blocks(m_inputBlockSize, m_inputBlockSize, 1);
@@ -291,6 +331,8 @@ namespace cuda
     dim3 rblocks(m_inputBlockSize, m_inputBlockSize, 1);
     dim3 rgrid((m_inputW + m_inputBlockSize - 1) / m_inputBlockSize, (m_inputH + m_inputBlockSize - 1) / m_inputBlockSize, 1);
     removeCandidates<<<rgrid, rblocks>>>(d_hysterTemp, d_hyster, m_inputW, m_inputH, d_hysterTempPitch, d_hysterPitch);
+
+    _endCudaTimer(CannyStage::HYSTER);
 
     LOG_DEBUG("End Hysteresis");
   }
@@ -362,6 +404,29 @@ namespace cuda
     LOG_DEBUG("End deallocating image memory in GPU");
 
     m_isAlloc = false;
+  }
+
+  void CannyEdge::_startCudaTimer()
+  {
+    if (m_isKernelProfilingEnabled && d_start)
+      cudaEventRecord(*d_start);
+  }
+
+  void CannyEdge::_endCudaTimer(CannyStage stage)
+  {
+    if (m_isKernelProfilingEnabled && d_start && d_stop)
+    {
+      const auto &it = CANNY_STAGES.find(stage);
+
+      if (it != CANNY_STAGES.end())
+      {
+        float elapsedTime = 0.0f;
+        cudaEventRecord(*d_stop);
+        cudaEventSynchronize(*d_stop);
+        cudaEventElapsedTime(&elapsedTime, *d_start, *d_stop);
+        timerManager::Get().addTime(it->second, elapsedTime);
+      }
+    }
   }
 }// namespace cuda
 }// namespace cvp

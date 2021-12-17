@@ -7,6 +7,7 @@ namespace cvp
 {
 namespace cuda
 {
+  // Gaussian kernel 5x5
   __constant__ float GK[5][5];
 
   // Mono
@@ -19,9 +20,11 @@ namespace cuda
 
   // Gaussian
   constexpr int G_O_TILE_WIDTH = MAX_2D_BLOCK_SIDE - 4;// 4 halo cells
+
   // Sobel/NonMaxSuppr/Hysteresis
   constexpr int O_TILE_WIDTH = MAX_2D_BLOCK_SIDE - 2;// 2 halo cells
 
+  // Grad mult coeff
   constexpr int GRAD_COEFF = 4;
 
   // DoubleTresh/NonMaxSuppr/Hysteresis

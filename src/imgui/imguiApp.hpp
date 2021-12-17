@@ -39,7 +39,7 @@ private:
   void runLoopStarter();
   void runLoopEnder();
 
-  void zoomToolTip(ImVec2 cursorPos, ImVec2 ioPos);
+  void zoomToolTip(GLuint textID, ImVec2 cursorPos, ImVec2 ioPos);
 
   std::string m_nameApp;
 
@@ -63,6 +63,7 @@ private:
   size_t m_pboCols, m_pboRows;
   GLuint m_pbo;
   GLuint m_texture;
+  GLuint m_textureCuda;
   size_t m_zoom;
 
   // IO

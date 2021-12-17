@@ -28,6 +28,9 @@ namespace cuda
     void setHighThreshold(unsigned char high) { m_highThresh = max(high, m_lowThresh); }
     unsigned char getHighThreshold() const { return m_highThresh; }
 
+    void enableKernelProfiling(bool profiling){ m_isKernelProfilingEnabled = profiling;}
+    bool isKernelProfilingEnabled() const { return m_isKernelProfilingEnabled; }
+
   private:
     void _initAlloc();
     void _endAlloc();
@@ -47,6 +50,9 @@ namespace cuda
     void _runHysteresis();
 
     void _sendOutputToOpenGL(cvp::CannyStage finalStage);
+
+    void _startCudaTimer();
+    void _endCudaTimer(CannyStage stage);
 
     // Most of following int variables should be unsigned
     // sticking to signed ones to facilitate nvcc optimizations
@@ -94,6 +100,10 @@ namespace cuda
     int *d_isImageModified;
 
     struct cudaGraphicsResource *d_pbo;
+
+    bool m_isKernelProfilingEnabled;
+    std::unique_ptr<cudaEvent_t> d_start;
+    std::unique_ptr<cudaEvent_t> d_stop;
 
     bool m_isAlloc;
     bool m_isInit;
