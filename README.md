@@ -1,4 +1,4 @@
-# RTCudaCanny
+# CudaCam
 
 Real-time application combining **DearImGui/OpenGL, OpenCV and CUDA** to obtain an instant **Canny Edge Detector** on top of your webcam feed. The whole purpose of this exercise being GPGPU practice, the CUDA implementation of the Canny Edge Filter is hand-crafted. Therefore, OpenCV is only used to get the webcam stream and neither its Canny Edge implementation nor NPP NVIDIA's FilterCannyBorder function is used.
 
