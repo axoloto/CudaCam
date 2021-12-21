@@ -5,7 +5,7 @@ class CudaCamConan(ConanFile):
     # Note: options are copied from CMake boolean options.
     # When turned off, CMake sometimes passes them as empty strings.
     options = {
-        "use_imgui": ["ON", "OFF", ""]
+        "use_imgui": ["ON", "OFF"]
     }
     default_options = {
         "use_imgui": "ON",

@@ -25,7 +25,7 @@ macro(run_conan)
   conan_add_remote(NAME bincrafters URL https://bincrafters.jfrog.io/artifactory/api/conan/public-conan)
 
   # For multi configuration generators, like VS and XCode
-  if(NOT CMAKE_CONFIGURATION_TYPES)
+  if(NOT CMAKE_CONFIGURATION_TYPES OR NOT MULTI_CONAN_BUILD)
     message(STATUS "Single configuration build!")
     set(LIST_OF_BUILD_TYPES ${CMAKE_BUILD_TYPE})
   else()

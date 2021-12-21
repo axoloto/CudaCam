@@ -14,6 +14,8 @@
 #include "cvPipeline.hpp"
 #include "webcam.hpp"
 
+#include "define.hpp"
+
 namespace App
 {
 class ImguiApp
@@ -23,8 +25,9 @@ public:
   ~ImguiApp();
   void run();
   bool isInit() const { return m_init; }
+  std::pair<cvp::CannyStage, std::string> nextS(cvp::CannyStage s);
 
-private:
+    private:
   bool initWindow();
   bool initWebcam();
   bool initOpenGL();
