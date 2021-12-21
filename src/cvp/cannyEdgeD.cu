@@ -264,7 +264,7 @@ namespace cuda
         }
 
         // Suppressing values wich are not local maximums
-        nms[row_o * nmsPitch + col_o] = (qr.x <= gradVal && qr.y <= gradVal) ? min((unsigned char)gradVal, 255) : 0;
+        nms[row_o * nmsPitch + col_o] = (q <= gradVal && r <= gradVal) ? min((unsigned char)gradVal, 255) : 0;
       }
     }
   }
