@@ -13,7 +13,7 @@ class CudaCamConan(ConanFile):
         "glad:extensions":"GL_ARB_vertex_buffer_object, GL_ARB_pixel_buffer_object"
     }
     name = "CudaCam"
-    version = "0.1"
+    version = "0.4"
     requires = (
         "catch2/2.13.7",
         "docopt.cpp/0.6.2",

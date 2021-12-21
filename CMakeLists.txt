@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.15)
 
 project(CudaCam LANGUAGES C CXX CUDA
-                VERSION 0.2.0
-                DESCRIPTION "Minimal Cuda application processing live webcam stream" 
+                VERSION 0.3.0
+                DESCRIPTION "Hand-crafted Cuda Canny Edge Detector on top of real-time webcam feed" 
                 HOMEPAGE_URL "https://github.com/axoloto/CudaCam")
 
 include(cmake/StandardProjectSettings.cmake)
