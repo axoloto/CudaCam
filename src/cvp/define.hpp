@@ -32,4 +32,5 @@ static const std::map<CannyStage, std::string, CompareCannyStage> CANNY_STAGES{
   { CannyStage::THRESH, "5/6 Double Threshold" },
   { CannyStage::HYSTER, "6/6 Hysteresis" }
 };
+
 }// namespace cvp

@@ -235,19 +235,10 @@ namespace cuda
       if (col_o < width && row_o < height)
       {
         const float gradVal = grad_s[ty + 1][tx + 1];
+
         float angle = slope[row_o * slopePitch + col_o] * 180.0f / CUDART_PI_F;
         if (angle < 0.0f) angle += 180.0f;
 
-        /*
-        // clang-format off
-        // Identify edge direction based on the angle value and retrieve grad values for this direction
-        uchar2 qr =  (angle < 22.5f || angle > 157.5f) ? make_uchar2(grad_s[ty][tx + 1], grad_s[ty][tx - 1])
-                  : ((22.5f <= angle && angle <= 67.5f) ? make_uchar2(grad_s[ty + 1][tx - 1], grad_s[ty - 1][tx + 1])
-                  : ((67.5f < angle && angle <= 112.5f) ? make_uchar2(grad_s[ty + 1][tx], grad_s[ty - 1][tx])
-                  : ((112.5f < angle && angle <= 157.5f) ? make_uchar2(grad_s[ty - 1][tx - 1], grad_s[ty + 1][tx + 1])
-                  : make_uchar2(0, 0))));
-        // clang-format on    
-        */
         float q = 0.0f;
         float r = 0.0f;
 
@@ -324,8 +315,8 @@ namespace cuda
 
     if (tx == 0 && ty == 0)
     {
-      isBlockModified[0] = 1;//Iteration level modification
-      isBlockModified[1] = 0;//Block level modification
+      isBlockModified[0] = 1;//Local modification alert, only at internal interation level
+      isBlockModified[1] = 0;//Global modification alert, to ask host for another kernel runtime
     }
 
     if ((row_i >= 0) && (row_i < height) && (col_i >= 0) && (col_i < width))

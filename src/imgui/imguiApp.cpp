@@ -120,7 +120,24 @@ bool ImguiApp::closeWindow()
   return true;
 }
 
-bool ImguiApp::checkSDLStatus()
+std::pair<cvp::CannyStage, std::string> ImguiApp::nextS(cvp::CannyStage s)
+{
+  auto it = cvp::CANNY_STAGES.find(s);
+  ++it;
+
+  if (it != cvp::CANNY_STAGES.end())
+  {
+    auto stage = it->first;
+    auto name = it->second;
+    return std::make_pair(stage, name);
+  }
+  else
+  {
+    return std::make_pair(cvp::CannyStage::MONO, "1/6 Mono Conversion");
+  }
+}
+
+  bool ImguiApp::checkSDLStatus()
 {
   bool keepGoing = true;
 
@@ -162,7 +179,17 @@ bool ImguiApp::checkSDLStatus()
     }
     case SDL_KEYDOWN:
     {
-      m_takeLastFrame = !m_takeLastFrame;
+      //m_takeLastFrame = !m_takeLastFrame;
+    
+      if (event.key.keysym.scancode == SDL_SCANCODE_DELETE)
+      {
+        m_isCvPipelineEnabled = !m_isCvPipelineEnabled;
+      }
+      else
+      {
+      m_cvFinalStage = nextS(m_cvFinalStage.first);
+
+      }
       break;
     }
     }

@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.15)
 
 project(CudaCam LANGUAGES C CXX CUDA
-                VERSION 0.2.0
-                DESCRIPTION "Minimal Cuda application processing live webcam stream" 
+                VERSION 0.3.0
+                DESCRIPTION "Hand-crafted Cuda Canny Edge Detector on top of real-time webcam feed" 
                 HOMEPAGE_URL "https://github.com/axoloto/CudaCam")
 
 include(cmake/StandardProjectSettings.cmake)
@@ -13,7 +13,6 @@ message(STATUS "Version Minor ${PROJECT_VERSION_MINOR}")
 message(STATUS "Version Patch ${PROJECT_VERSION_PATCH}")
 
 message(STATUS "build type ${CMAKE_BUILD_TYPE}")
-message(STATUS "build dir ${CMAKE_BUILD_DIR}")
 
 SET(CMAKE_VERBOSE_MAKEFILE ON)
 
@@ -71,9 +70,11 @@ enable_doxygen()
 # allow for static analysis options
 include(cmake/StaticAnalyzers.cmake)
 
+option(USE_IMGUI "Enable compilation of ImGui Application" ON)
 option(BUILD_SHARED_LIBS "Enable compilation of shared libraries" OFF)
 option(ENABLE_TESTING "Enable Test Builds" ON)
 option(ENABLE_FUZZING "Enable Fuzzing Builds" OFF)
+option(MULTI_CONAN_BUILD "Enable Multiple Conan Builds" OFF)
 
 # Very basic PCH example
 option(ENABLE_PCH "Enable Precompiled Headers" OFF)

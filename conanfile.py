@@ -5,7 +5,7 @@ class CudaCamConan(ConanFile):
     # Note: options are copied from CMake boolean options.
     # When turned off, CMake sometimes passes them as empty strings.
     options = {
-        "use_imgui": ["ON", "OFF", ""]
+        "use_imgui": ["ON", "OFF"]
     }
     default_options = {
         "use_imgui": "ON",
@@ -13,7 +13,7 @@ class CudaCamConan(ConanFile):
         "glad:extensions":"GL_ARB_vertex_buffer_object, GL_ARB_pixel_buffer_object"
     }
     name = "CudaCam"
-    version = "0.1"
+    version = "0.4"
     requires = (
         "catch2/2.13.7",
         "docopt.cpp/0.6.2",

@@ -14,3 +14,5 @@ set_target_properties(cvProcessing PROPERTIES CUDA_RESOLVE_DEVICE_SYMBOLS ON)
 target_include_directories(cvProcessing PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 target_link_libraries(cvProcessing PUBLIC project_options utils opencv::opencv_core opencv::opencv_imgproc opencv::opencv_videoio)  #project_warnings
+
+install(TARGETS cvProcessing RUNTIME DESTINATION lib)
