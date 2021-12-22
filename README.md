@@ -13,11 +13,11 @@ With a NVIDIA GTX 1650, **the entire CUDA process takes around 6ms and is imperc
 - Results were successfully compared to OpenCV own Canny implementation
 
 ## More low-level technical details for CUDA fans:
-- Tiled 2D convolution approach with halo cells, tiles being loaded into shared memory. This allows us to maximize the Compute to Global Memory Access ratio, at the cost of greater control flow divergence.
-- 2D padded memory used everywhere to optimize global memory access and DRAM bursts
+- **Tiled 2D convolution** approach with halo cells, tiles being loaded into shared memory. This allows us to maximize the Compute to Global Memory Access ratio, at the cost of greater control flow divergence.
+- **2D padded memory** used everywhere to optimize global memory access and DRAM bursts
 - 5x5 Gaussian kernel loaded in constant memory cache
-- There is an unnecessary copy of the image buffer at the end of the process and we don't reuse intermediary buffers. This allows us to show intermediary images while keeping a clean and generic codebase but it can be optimized for performance need. 
-- Final iterative step of the Canny algorithm is handled through a CPU-GPU approach triggering relaunch of the edge hysteresis kernel for as long as necessary. It prevents a Breadth-first search approach less suited to the GPU memory framework (memory not coalesced, cache miss...).
+- There is an unnecessary copy of the image buffer at the end of the process and we don't reuse intermediary buffers. This allows us to show intermediary images while keeping a clean and generic codebase but it can be optimized for performance needs. 
+- Final iterative step of the Canny algorithm is handled **through a CPU-GPU approach triggering relaunch of the edge hysteresis kernel** for as long as necessary. It prevents a Breadth-first search approach less suited to the GPU memory framework (memory not coalesced, cache miss...).
 - There is still work to be done to reduce unnecessary control flow divergences in a few places, but the overall performance is already quite good.
 
 ## Relevant Articles
