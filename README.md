@@ -53,8 +53,8 @@ conan profile update settings.compiler.libcxx=libstdc++11 default
 ## Build and Run
 
 ```bash
-git clone https://github.com/axoloto/CudaCannyRealTime.git
-cd CudaCannyRealTime
+git clone https://github.com/axoloto/CudaCam.git
+cd CudaCam
 ./runApp.sh
 ```
 
