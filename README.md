@@ -2,12 +2,24 @@
 
 Real-time application combining **DearImGui/OpenGL, OpenCV and CUDA** to obtain an instant **Canny Edge Detector** on top of your webcam feed. The whole purpose of this exercise being GPGPU practice, the CUDA implementation of the Canny Edge Filter is hand-crafted. Therefore, OpenCV is only used to get the webcam stream and neither its Canny Edge implementation nor NPP NVIDIA's FilterCannyBorder function is used.
 
-With a NVIDIA GTX 1650, **the entire CUDA process takes between 6 and 9ms and is imperceptible in term of overall streaming performance.** Still, there is room for improvements, as always.
+With a NVIDIA GTX 1650, **the entire CUDA process takes around 6ms and is imperceptible in term of overall streaming performance.** Still, there is room for improvements, as always.
 
-## Some technical details
+## Some high-level technical details:
+- Canny Edge Detector is fully processed on the CUDA device
+- The whole process (capture and processing) is in real-time
+- Webcam stream is managed via OpenCV Video IO
+- CUDA-OpenGL interoperability allows a single CPU-GPU image transfer per frame
+- Build system is based on Modern CMake with Conan as the third-party package manager
+- Results were successfully compared to OpenCV own Canny implementation
 
-- wip
-  
+## More low-level technical details for CUDA fans:
+- Tiled 2D convolution approach with halo cells, tiles being loaded into shared memory. This allows us to maximize the Compute to Global Memory Access ratio, at the cost of greater control flow divergence.
+- 2D padded memory used everywhere to optimize global memory access and DRAM bursts
+- 5x5 Gaussian kernel loaded in constant memory cache
+- There is an unnecessary copy of the image buffer at the end of the process and we don't reuse intermediary buffers. This allows us to show intermediary images while keeping a clean and generic codebase but it can be optimized for performance need. 
+- Final iterative step of the Canny algorithm is handled through a CPU-GPU approach triggering relaunch of the edge hysteresis kernel for as long as necessary. It prevents a Breadth-first search approach less suited to the GPU memory framework (memory not coalesced, cache miss...).
+- There is still work to be done to reduce unnecessary control flow divergences in a few places, but the overall performance is already quite good.
+
 ## Relevant Articles
 
 - [A Computational Approach to Edge Detection](https://ieeexplore.ieee.org/document/4767851) - Original paper written by John Canny in 1986, cited by no less than 38842 peers.
