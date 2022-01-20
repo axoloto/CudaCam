@@ -27,7 +27,7 @@ public:
   bool isInit() const { return m_init; }
   std::pair<cvp::CannyStage, std::string> nextS(cvp::CannyStage s);
 
-    private:
+private:
   bool initWindow();
   bool initWebcam();
   bool initOpenGL();

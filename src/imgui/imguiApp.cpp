@@ -137,7 +137,7 @@ std::pair<cvp::CannyStage, std::string> ImguiApp::nextS(cvp::CannyStage s)
   }
 }
 
-  bool ImguiApp::checkSDLStatus()
+bool ImguiApp::checkSDLStatus()
 {
   bool keepGoing = true;
 
@@ -180,15 +180,15 @@ std::pair<cvp::CannyStage, std::string> ImguiApp::nextS(cvp::CannyStage s)
     case SDL_KEYDOWN:
     {
       //m_takeLastFrame = !m_takeLastFrame;
-    
+
+      // WIP
       if (event.key.keysym.scancode == SDL_SCANCODE_DELETE)
       {
         m_isCvPipelineEnabled = !m_isCvPipelineEnabled;
       }
       else
       {
-      m_cvFinalStage = nextS(m_cvFinalStage.first);
-
+        m_cvFinalStage = nextS(m_cvFinalStage.first);
       }
       break;
     }
@@ -392,34 +392,34 @@ void ImguiApp::displayMainWidget()
 
 void ImguiApp::displayLiveStream()
 {
+  cv::Mat image = m_webcam->frame();
+
+  if (!image.empty() && image.type() == CV_8UC3)
+  {
+    if (m_takeLastFrame)
+    {
+      cv::cvtColor(image, image, cv::COLOR_RGB2BGR);
+      glBindTexture(GL_TEXTURE_2D, m_texture);
+      glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, image.cols, image.rows, 0, GL_RGB, GL_UNSIGNED_BYTE, image.ptr());
+      glBindTexture(GL_TEXTURE_2D, 0);
+    }
+  }
+  else
+  {
+    LOG_ERROR("Image type not supported, cannot display it");
+  }
+
   if (!m_isCvPipelineEnabled)
   {
-    cv::Mat image = m_webcam->frame();
-
-    if (!image.empty() && image.type() == CV_8UC3)
-    {
-      if (m_takeLastFrame)
-      {
-        cv::cvtColor(image, image, cv::COLOR_RGB2BGR);
-        glBindTexture(GL_TEXTURE_2D, m_texture);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, image.cols, image.rows, 0, GL_RGB, GL_UNSIGNED_BYTE, image.ptr());
-        glBindTexture(GL_TEXTURE_2D, 0);
-      }
-
-      ImGui::SetNextWindowPos(ImVec2(150, 120), ImGuiCond_FirstUseEver);
-      ImGui::SetNextWindowSize(ImVec2(image.cols, image.rows), ImGuiCond_FirstUseEver);
-      ImGui::Begin("Live Stream");
-      const auto &io = ImGui::GetIO();
-      ImVec2 pos = ImGui::GetCursorScreenPos();
-      ImGui::Text("%d x %d", image.cols, image.rows);
-      ImGui::Image((void *)(intptr_t)m_texture, ImVec2(image.cols, image.rows));
-      zoomToolTip(m_texture, pos, io.MousePos);
-      ImGui::End();
-    }
-    else
-    {
-      LOG_ERROR("Cannot display webcam image");
-    }
+    ImGui::SetNextWindowPos(ImVec2(150, 120), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(image.cols, image.rows), ImGuiCond_FirstUseEver);
+    ImGui::Begin("Live Stream");
+    const auto &io = ImGui::GetIO();
+    ImVec2 pos = ImGui::GetCursorScreenPos();
+    ImGui::Text("%d x %d", image.cols, image.rows);
+    ImGui::Image((void *)(intptr_t)m_texture, ImVec2(image.cols, image.rows));
+    zoomToolTip(m_texture, pos, io.MousePos);
+    ImGui::End();
   }
   else
   {
@@ -433,12 +433,18 @@ void ImguiApp::displayLiveStream()
     ImGui::SetNextWindowPos(ImVec2(150, 120), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(ImVec2(m_pboCols, m_pboRows), ImGuiCond_FirstUseEver);
 
-    ImGui::Begin("Live Stream");
+    ImGui::Begin("Live Stream - CUDA");
     const auto &io = ImGui::GetIO();
     ImVec2 pos = ImGui::GetCursorScreenPos();
-    ImGui::Text("%d x %d CUDA", m_pboCols, m_pboRows);
+    ImGui::Text("%d x %d", m_pboCols, m_pboRows);
     ImGui::Image((void *)(intptr_t)m_textureCuda, ImVec2(m_pboCols, m_pboRows));
     zoomToolTip(m_textureCuda, pos, io.MousePos);
+    ImGui::End();
+
+    ImGui::SetNextWindowPos(ImVec2(10, 720), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(m_pboCols / 3, m_pboRows / 3), ImGuiCond_FirstUseEver);
+    ImGui::Begin("Live Stream - Raw");
+    ImGui::Image((void *)(intptr_t)m_texture, ImVec2(image.cols / 3, image.rows / 3));
     ImGui::End();
   }
 }
