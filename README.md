@@ -4,6 +4,9 @@ Real-time application combining **DearImGui/OpenGL, OpenCV and CUDA** to obtain 
 
 With a NVIDIA GTX 1650, **the entire CUDA process takes around 6ms and is imperceptible in term of overall streaming performance.** Still, there is room for improvements, as always.
 
+## Demo on Youtube
+[![ytCanny](ytCanny.jpg)](https://youtu.be/1IdsSXBeFx4 "Video on Youtube")
+
 ## Some high-level technical details:
 - Canny Edge Detector is fully processed on the CUDA device
 - The whole process (capture and processing) is in real-time
